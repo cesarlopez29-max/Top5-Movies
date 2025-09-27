@@ -62,7 +62,6 @@ io.on('connection', (socket) => {
         const room = await GameRoom.findOne({ roomCode });
         if (!room) return;
         
-        // Guardar la selección en nuestro objeto temporal en memoria
         if (!roomSelections[roomCode]) {
             roomSelections[roomCode] = {};
         }
@@ -73,7 +72,6 @@ io.on('connection', (socket) => {
 
         io.to(roomCode).emit('updateVoteCount', { received: selectionsCount, total: totalPlayers });
 
-        // Comprobar si todos han votado
         if (selectionsCount === totalPlayers) {
             calculateResults(roomCode);
         }
@@ -82,9 +80,9 @@ io.on('connection', (socket) => {
     socket.on('disconnect', async () => { console.log(`Jugador desconectado: ${socket.id}`); });
 });
 
+// ESTA FUNCIÓN HA SIDO ACTUALIZADA
 async function startNewRound(roomCode) {
     try {
-        // Limpiar las selecciones de la ronda anterior para esta sala
         if (roomSelections[roomCode]) {
             delete roomSelections[roomCode];
         }
@@ -93,9 +91,14 @@ async function startNewRound(roomCode) {
         if (!room) return;
         
         const TMDB_API_KEY = process.env.TMDB_API_KEY;
+
+        // --- Lógica de Selección de Actor Mejorada ---
+        // Se conecta a la página 1 de "populares" para obtener solo los actores más famosos
         const peopleResponse = await axios.get(`https://api.themoviedb.org/3/person/popular`, {
-            params: { api_key: TMDB_API_KEY, language: 'es-MX', page: Math.floor(Math.random() * 10) + 1 }
+            params: { api_key: TMDB_API_KEY, language: 'es-MX' }
         });
+        // -------------------------------------------
+
         const randomPerson = peopleResponse.data.results[Math.floor(Math.random() * peopleResponse.data.results.length)];
 
         const creditsResponse = await axios.get(`https://api.themoviedb.org/3/person/${randomPerson.id}/movie_credits`, {
@@ -122,26 +125,30 @@ async function startNewRound(roomCode) {
     }
 }
 
+// ESTA FUNCIÓN HA SIDO ACTUALIZADA
 async function calculateResults(roomCode) {
     try {
         const room = await GameRoom.findOne({ roomCode });
         if (!room || !roomSelections[roomCode]) return;
 
         const correctMovies = room.currentActor.topMovies;
-        const selections = roomSelections[roomCode]; // Usamos las selecciones de memoria
+        const selections = roomSelections[roomCode];
         const roundScores = [];
 
         room.players.forEach(player => {
             const playerSelection = selections[player.id] || [];
             const hits = playerSelection.filter(movie => correctMovies.includes(movie)).length;
+            
+            // --- Lógica de Puntuación Nueva ---
+            let pointsThisRound = hits * 2; // 2 puntos por cada acierto
+            if (hits === 5) {
+                pointsThisRound += 5; // Bono de 5 puntos por pleno (15 puntos en total)
+            }
+            player.score += pointsThisRound;
+            // ------------------------------------
+
             roundScores.push({ player, hits, selection: playerSelection });
         });
-
-        roundScores.sort((a, b) => b.hits - a.hits);
-        
-        if (roundScores[0] && roundScores[0].player) roundScores[0].player.score += 3;
-        if (roundScores[1] && roundScores[1].player) roundScores[1].player.score += 2;
-        if (roundScores[2] && roundScores[2].player) roundScores[2].player.score += 1;
         
         io.to(roomCode).emit('roundResult', { 
             correctMovies, 
@@ -152,7 +159,7 @@ async function calculateResults(roomCode) {
         const winner = room.players.find(p => p.score >= room.targetScore);
         if (winner) {
             io.to(roomCode).emit('gameOver', { winnerName: winner.name });
-            delete roomSelections[roomCode]; // Limpiar memoria al final del juego
+            delete roomSelections[roomCode];
         } else {
             setTimeout(() => startNewRound(roomCode), 10000);
         }
