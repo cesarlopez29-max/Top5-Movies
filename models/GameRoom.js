@@ -12,7 +12,6 @@ const gameRoomSchema = new Schema({
     roomCode: { type: String, required: true, unique: true, uppercase: true },
     players: [playerSchema],
     targetScore: { type: Number, required: true, default: 10 },
-    gameState: { type: String, enum: ['waiting', 'in-progress', 'finished'], default: 'waiting' },
     currentActor: { name: String, topMovies: [String] }
 }, { timestamps: true });
 

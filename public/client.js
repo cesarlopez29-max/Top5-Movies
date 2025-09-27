@@ -104,6 +104,9 @@ socket.on('joinedRoom', ({ roomCode }) => {
 });
 
 socket.on('updatePlayers', (players) => {
+    // Esta línea es para depurar. Aparecerá en la consola del navegador.
+    console.log('Lista de jugadores actualizada recibida:', players); 
+    
     playersList.innerHTML = '';
     players.forEach(player => {
         const li = document.createElement('li');
