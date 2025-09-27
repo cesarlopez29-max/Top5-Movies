@@ -12,7 +12,6 @@ app.use(cors());
 const server = http.createServer(app);
 const io = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] }});
 
-// Objeto temporal para manejar las selecciones de la ronda actual en memoria
 const roomSelections = {};
 
 mongoose.connect(process.env.MONGO_URI)
@@ -80,7 +79,6 @@ io.on('connection', (socket) => {
     socket.on('disconnect', async () => { console.log(`Jugador desconectado: ${socket.id}`); });
 });
 
-// ESTA FUNCIÓN HA SIDO ACTUALIZADA
 async function startNewRound(roomCode) {
     try {
         if (roomSelections[roomCode]) {
@@ -92,17 +90,20 @@ async function startNewRound(roomCode) {
         
         const TMDB_API_KEY = process.env.TMDB_API_KEY;
 
-        // --- Lógica de Selección de Actor Mejorada ---
-        // Se conecta a la página 1 de "populares" para obtener solo los actores más famosos
         const peopleResponse = await axios.get(`https://api.themoviedb.org/3/person/popular`, {
-            params: { api_key: TMDB_API_KEY, language: 'es-MX' }
+            params: { 
+                api_key: TMDB_API_KEY, 
+                language: 'es-ES' // CAMBIO: Se ha cambiado a Español de España
+            }
         });
-        // -------------------------------------------
 
         const randomPerson = peopleResponse.data.results[Math.floor(Math.random() * peopleResponse.data.results.length)];
 
         const creditsResponse = await axios.get(`https://api.themoviedb.org/3/person/${randomPerson.id}/movie_credits`, {
-            params: { api_key: TMDB_API_KEY, language: 'es-MX' }
+            params: { 
+                api_key: TMDB_API_KEY, 
+                language: 'es-ES' // CAMBIO: Se ha cambiado a Español de España
+            }
         });
         
         const allMovies = [...new Set(creditsResponse.data.cast.map(movie => movie.title))].sort();
@@ -125,7 +126,6 @@ async function startNewRound(roomCode) {
     }
 }
 
-// ESTA FUNCIÓN HA SIDO ACTUALIZADA
 async function calculateResults(roomCode) {
     try {
         const room = await GameRoom.findOne({ roomCode });
@@ -139,13 +139,11 @@ async function calculateResults(roomCode) {
             const playerSelection = selections[player.id] || [];
             const hits = playerSelection.filter(movie => correctMovies.includes(movie)).length;
             
-            // --- Lógica de Puntuación Nueva ---
-            let pointsThisRound = hits * 2; // 2 puntos por cada acierto
+            let pointsThisRound = hits * 2;
             if (hits === 5) {
-                pointsThisRound += 5; // Bono de 5 puntos por pleno (15 puntos en total)
+                pointsThisRound += 5;
             }
             player.score += pointsThisRound;
-            // ------------------------------------
 
             roundScores.push({ player, hits, selection: playerSelection });
         });
