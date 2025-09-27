@@ -1,161 +1,58 @@
 :root {
-    --primary-color: #f3ce13; /* Amarillo cine */
-    --dark-bg: #141414; /* Negro Netflix */
-    --card-bg: #222222;
-    --text-color: #ffffff;
-    --text-muted: #aaaaaa;
-    --border-color: #333333;
+    --primary-color: #f3ce13; --dark-bg: #141414; --card-bg: #222222;
+    --text-color: #ffffff; --text-muted: #aaaaaa; --border-color: #333333;
 }
-
 body {
-    font-family: 'Poppins', sans-serif;
-    background-color: var(--dark-bg);
-    color: var(--text-color);
-    margin: 0;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    font-family: 'Poppins', sans-serif; background-color: var(--dark-bg); color: var(--text-color);
+    margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center;
 }
-
-.main-header {
-    text-align: center;
-    margin-bottom: 2rem;
-}
-
 .main-header h1 {
-    font-size: 2.5rem;
-    font-weight: 700;
-    color: var(--primary-color);
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    font-size: 2.5rem; font-weight: 700; color: var(--primary-color);
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5); text-align: center;
 }
-
 #app-container {
-    width: 100%;
-    max-width: 600px;
-    background-color: var(--card-bg);
-    padding: 2rem;
-    border-radius: 12px;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-    border: 1px solid var(--border-color);
+    width: 100%; max-width: 600px; background-color: var(--card-bg);
+    padding: 1.5rem; border-radius: 12px; box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+    border: 1px solid var(--border-color); box-sizing: border-box;
 }
-
-#home-screen h2 {
-    text-align: center;
-    color: var(--primary-color);
+input[type="text"], input[type="number"], select {
+    background-color: #333; color: var(--text-color); border: 1px solid var(--border-color);
+    padding: 12px; border-radius: 6px; width: 100%; box-sizing: border-box;
+    font-family: 'Poppins', sans-serif; margin-bottom: 1rem; font-size: 16px;
 }
-
-#home-screen p {
-    text-align: center;
-    color: var(--text-muted);
-    margin-bottom: 1.5rem;
-}
-
-hr {
-    border: 0;
-    height: 1px;
-    background: var(--border-color);
-    margin: 1.5rem 0;
-}
-
-input[type="text"], input[type="number"] {
-    background-color: #333;
-    color: var(--text-color);
-    border: 1px solid var(--border-color);
-    padding: 12px;
-    border-radius: 6px;
-    width: 100%;
-    box-sizing: border-box;
-    font-family: 'Poppins', sans-serif;
-    margin-bottom: 1rem;
-}
-
-input::placeholder {
-    color: #777;
-}
-
 button {
-    background-color: var(--primary-color);
-    color: #000;
-    border: none;
-    padding: 12px 20px;
-    border-radius: 6px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.2s, background-color 0.2s;
-    width: 100%;
+    background-color: var(--primary-color); color: #000; border: none;
+    padding: 12px 20px; border-radius: 6px; font-weight: 600; cursor: pointer;
+    transition: transform 0.2s, background-color 0.2s; width: 100%; font-size: 16px;
 }
+button:hover { transform: translateY(-2px); background-color: #ffde40; }
+.room-actions { display: flex; gap: 1rem; align-items: stretch; flex-direction: column; }
+@media (min-width: 500px) { .room-actions { flex-direction: row; } }
+#create-game, #join-game { display: flex; flex-direction: column; flex: 1; }
+#targetScore { width: 80px; align-self: center; }
+.hidden { display: none; }
+.game-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.start-button { width: auto; }
+ul { list-style: none; padding: 0; }
+#players-list li { background: #333; padding: 10px; border-radius: 4px; margin-bottom: 5px; }
+#results-section { background-color: #1a1a1a; padding: 1rem; border-radius: 8px; margin-top: 1rem; }
+select.movie-selector { margin-bottom: 0.5rem; }
 
-button:hover {
-    transform: translateY(-2px);
-    background-color: #ffde40;
+/* --- NUEVOS ESTILOS --- */
+.poster-list {
+    display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; padding: 0;
 }
-
-button:disabled {
-    background-color: #555;
-    color: #888;
-    cursor: not-allowed;
-    transform: none;
+.poster-list li {
+    background-color: transparent; text-align: center; width: 120px; font-size: 0.8rem;
+    display: flex; flex-direction: column; align-items: center;
 }
-
-.room-actions {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
+.poster-list img {
+    width: 100%; border-radius: 8px; border: 2px solid var(--border-color); margin-bottom: 0.5rem;
 }
-
-#create-game, #join-game {
-    flex: 1;
+.game-over-container {
+    text-align: center; margin-top: 2rem; padding-top: 1.5rem;
+    border-top: 1px solid var(--border-color);
 }
-
-#targetScore {
-    width: 60px;
-    text-align: center;
+.game-over-container button {
+    width: auto; padding: 12px 30px; margin-top: 1rem;
 }
-
-.game-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-}
-
-.start-button {
-    width: auto;
-}
-
-ul {
-    list-style: none;
-    padding: 0;
-}
-
-#players-list li, #correct-movies-list li {
-    background: #333;
-    padding: 10px;
-    border-radius: 4px;
-    margin-bottom: 5px;
-}
-
-#results-section {
-    background-color: #1a1a1a;
-    padding: 1rem;
-    border-radius: 8px;
-    margin-top: 1rem;
-}
-
-.hidden {
-    display: none;
-}
-
-/* Estilos para autocompletado */
-.autocomplete-container { position: relative; }
-.autocomplete-suggestions {
-    position: absolute;
-    background: #333;
-    border: 1px solid var(--border-color);
-    z-index: 10;
-    width: 100%;
-    box-sizing: border-box;
-}
-.suggestion-item { padding: 10px; cursor: pointer; }
-.suggestion-item:hover { background: var(--primary-color); color: #000; }

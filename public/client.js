@@ -1,6 +1,7 @@
 // ¡¡¡IMPORTANTE!!! Reemplaza esto con la URL de tu backend en Render
 const socket = io('https://top5-movies.onrender.com');
 
+// --- Elementos de la UI ---
 const homeScreen = document.getElementById('home-screen');
 const gameScreen = document.getElementById('game-screen');
 const createRoomBtn = document.getElementById('create-room-btn');
@@ -21,14 +22,13 @@ const correctMoviesList = document.getElementById('correct-movies-list');
 
 let currentRoomCode = '';
 
+// --- Eventos de Botones ---
 createRoomBtn.addEventListener('click', () => {
     const playerName = playerNameInput.value;
     const targetScore = targetScoreInput.value;
     if (playerName && targetScore) {
         socket.emit('createRoom', { playerName, targetScore });
-    } else {
-        alert('Por favor, introduce tu nombre.');
-    }
+    } else { alert('Por favor, introduce tu nombre.'); }
 });
 
 joinRoomBtn.addEventListener('click', () => {
@@ -36,9 +36,7 @@ joinRoomBtn.addEventListener('click', () => {
     const roomCode = roomCodeInput.value;
     if (playerName && roomCode) {
         socket.emit('joinRoom', { roomCode, playerName });
-    } else {
-        alert('Por favor, introduce tu nombre y el código de la sala.');
-    }
+    } else { alert('Por favor, introduce tu nombre y el código de la sala.'); }
 });
 
 startGameBtn.addEventListener('click', () => {
@@ -57,6 +55,7 @@ submitSelectionBtn.addEventListener('click', () => {
     voteStatus.innerText = '¡Selección enviada! Esperando a los demás...';
 });
 
+// --- Lógica UI ---
 function createMovieSelectors(movieList) {
     movieSelectorsContainer.innerHTML = '';
     for (let i = 0; i < 5; i++) {
@@ -68,17 +67,17 @@ function createMovieSelectors(movieList) {
         select.appendChild(defaultOption);
         movieList.forEach(movie => {
             const option = document.createElement('option');
-            option.value = movie;
-            option.innerText = movie;
+            option.value = movie.title;
+            option.dataset.poster = movie.poster;
+            option.innerText = movie.title;
             select.appendChild(option);
         });
         movieSelectorsContainer.appendChild(select);
     }
 }
 
-socket.on('connect_error', (err) => {
-    alert(`Error de conexión: ${err.message}.`);
-});
+// --- Eventos del Servidor ---
+socket.on('connect_error', (err) => { alert(`Error de conexión: ${err.message}.`); });
 
 socket.on('roomCreated', ({ roomCode }) => {
     currentRoomCode = roomCode;
@@ -96,7 +95,6 @@ socket.on('joinedRoom', ({ roomCode }) => {
 });
 
 socket.on('updatePlayers', (players) => {
-    console.log('Evento "updatePlayers" recibido. Jugadores:', players);
     playersList.innerHTML = '';
     players.forEach(player => {
         const li = document.createElement('li');
@@ -129,18 +127,35 @@ socket.on('roundResult', ({ correctMovies, playerScores, updatedPlayers }) => {
         playersList.appendChild(li);
     });
     correctMoviesList.innerHTML = '';
+    correctMoviesList.className = 'poster-list';
     correctMovies.forEach(movie => {
         const li = document.createElement('li');
-        li.innerText = movie;
+        const img = document.createElement('img');
+        img.src = movie.poster;
+        img.alt = movie.title;
+        const p = document.createElement('p');
+        p.innerText = movie.title;
+        li.appendChild(img);
+        li.appendChild(p);
         correctMoviesList.appendChild(li);
     });
     resultsSection.classList.remove('hidden');
 });
 
 socket.on('gameOver', ({ winnerName }) => {
-    alert(`¡Juego terminado! El ganador es ${winnerName}`);
-    gameScreen.classList.add('hidden');
-    homeScreen.classList.remove('hidden');
+    resultsSection.innerHTML += `
+        <div class="game-over-container">
+            <h2>🎉 ¡Fin de la partida! 🎉</h2>
+            <p>El ganador es: ${winnerName}</p>
+            <button id="play-again-btn">Jugar de Nuevo</button>
+        </div>
+    `;
+    document.getElementById('play-again-btn').addEventListener('click', () => {
+        socket.emit('resetGame', { roomCode: currentRoomCode });
+        // Ocultar el mensaje de fin de partida y los resultados
+        document.querySelector('.game-over-container').remove();
+        resultsSection.classList.add('hidden');
+    });
 });
 
 socket.on('error', (message) => { alert(`Error: ${message}`); });
