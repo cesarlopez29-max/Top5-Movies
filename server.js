@@ -22,20 +22,6 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('Conectado a MongoDB'))
     .catch(err => console.error('Error al conectar a MongoDB:', err));
 
-app.get('/search-movies', async (req, res) => {
-    const { query } = req.query;
-    if (!query) return res.json({ results: [] });
-    try {
-        const TMDB_API_KEY = process.env.TMDB_API_KEY;
-        const response = await axios.get(`https://api.themoviedb.org/3/search/movie`, {
-            params: { api_key: TMDB_API_KEY, language: 'es-MX', query: query }
-        });
-        res.json(response.data.results.slice(0, 5));
-    } catch (error) {
-        res.status(500).json({ error: 'Error al buscar películas' });
-    }
-});
-
 io.on('connection', (socket) => {
     console.log(`Nuevo jugador conectado: ${socket.id}`);
 
@@ -85,20 +71,21 @@ io.on('connection', (socket) => {
             
             const player = room.players.find(p => p.id === socket.id);
             if (player) {
-                player.currentSelection = selection.filter(movie => movie && movie.trim() !== '');
+                player.currentSelection = selection.filter(movie => movie && movie.trim() !== '' && movie !== 'default');
+                room.markModified('players');
             }
-            
             await room.save();
             
-            const selectionsCount = room.players.filter(p => p.currentSelection && p.currentSelection.length > 0).length;
+            const updatedRoom = await GameRoom.findOne({ roomCode });
+            const selectionsCount = updatedRoom.players.filter(p => p.currentSelection && p.currentSelection.length > 0).length;
             
-            io.to(roomCode).emit('updateVoteCount', { received: selectionsCount, total: room.players.length });
+            io.to(roomCode).emit('updateVoteCount', { received: selectionsCount, total: updatedRoom.players.length });
 
-            if (selectionsCount === room.players.length) {
+            if (selectionsCount === updatedRoom.players.length) {
                 calculateResults(roomCode);
             }
         } catch (error) {
-            console.error(error);
+            console.error("Error en submitSelection:", error);
         }
     });
 
@@ -125,20 +112,25 @@ async function startNewRound(roomCode) {
             params: { api_key: TMDB_API_KEY, language: 'es-MX' }
         });
 
+        // Obtenemos la filmografía completa y ordenada alfabéticamente
+        const allMovies = [...new Set(creditsResponse.data.cast.map(movie => movie.title))].sort();
+
+        // Obtenemos las 5 mejores películas por separado
         const topMovies = creditsResponse.data.cast
             .filter(movie => movie.vote_count > 200)
             .sort((a, b) => b.vote_average - a.vote_average)
             .slice(0, 5)
             .map(movie => movie.title);
         
-        if (topMovies.length < 5) {
+        if (topMovies.length < 5 || allMovies.length < 5) {
             return startNewRound(roomCode);
         }
 
         room.currentActor = { name: randomPerson.name, topMovies };
         await room.save();
         
-        io.to(roomCode).emit('newRound', { actorName: randomPerson.name });
+        // Enviamos al cliente el nombre del actor y TODA su filmografía
+        io.to(roomCode).emit('newRound', { actorName: randomPerson.name, movieList: allMovies });
     } catch (error) {
         console.error('Error al iniciar nueva ronda:', error);
     }
@@ -159,15 +151,18 @@ async function calculateResults(roomCode) {
 
         roundScores.sort((a, b) => b.hits - a.hits);
         
-        if (roundScores[0]) roundScores[0].player.score += 3;
-        if (roundScores[1]) roundScores[1].player.score += 2;
-        if (roundScores[2]) roundScores[2].player.score += 1;
+        if (roundScores[0] && roundScores[0].player) roundScores[0].player.score += 3;
+        if (roundScores[1] && roundScores[1].player) roundScores[1].player.score += 2;
+        if (roundScores[2] && roundScores[2].player) roundScores[2].player.score += 1;
         
         io.to(roomCode).emit('roundResult', { 
             correctMovies, 
             playerScores: roundScores.map(rs => ({ player: { name: rs.player.name }, hits: rs.hits, selection: rs.selection })), 
             updatedPlayers: room.players 
         });
+
+        room.players.forEach(p => { p.currentSelection = []; });
+        room.markModified('players');
 
         const winner = room.players.find(p => p.score >= room.targetScore);
         if (winner) {
