@@ -1,9 +1,10 @@
 // ¡¡¡IMPORTANTE!!! Reemplaza esto con la URL de tu backend en Render
 const socket = io('https://top5-movies.onrender.com');
 
-// --- Elementos de la UI ---
+
 const homeScreen = document.getElementById('home-screen');
 const gameScreen = document.getElementById('game-screen');
+// ... (resto de elementos UI)
 const createRoomBtn = document.getElementById('create-room-btn');
 const joinRoomBtn = document.getElementById('join-room-btn');
 const startGameBtn = document.getElementById('start-game-btn');
@@ -50,29 +51,25 @@ startGameBtn.addEventListener('click', () => {
 submitSelectionBtn.addEventListener('click', () => {
     const selection = Array.from(document.querySelectorAll('.movie-selector')).map(select => select.value);
     const uniqueSelection = [...new Set(selection.filter(movie => movie !== 'default'))];
-    
     if (uniqueSelection.length !== 5) {
         alert("Por favor, elige 5 películas diferentes.");
         return;
     }
-
     socket.emit('submitSelection', { roomCode: currentRoomCode, selection: uniqueSelection });
     submitSelectionBtn.disabled = true;
     voteStatus.innerText = '¡Selección enviada! Esperando a los demás...';
 });
 
-// --- Lógica para crear los menús desplegables ---
+// --- Lógica UI ---
 function createMovieSelectors(movieList) {
     movieSelectorsContainer.innerHTML = '';
     for (let i = 0; i < 5; i++) {
         const select = document.createElement('select');
         select.className = 'movie-selector';
-        
         const defaultOption = document.createElement('option');
         defaultOption.value = 'default';
         defaultOption.innerText = `-- Elige la película #${i + 1} --`;
         select.appendChild(defaultOption);
-
         movieList.forEach(movie => {
             const option = document.createElement('option');
             option.value = movie;
@@ -83,10 +80,8 @@ function createMovieSelectors(movieList) {
     }
 }
 
-// --- Escuchando Eventos del Servidor ---
-socket.on('connect_error', (err) => {
-    alert(`Error de conexión con el servidor: ${err.message}.`);
-});
+// --- Eventos del Servidor ---
+socket.on('connect_error', (err) => { alert(`Error de conexión: ${err.message}.`); });
 
 socket.on('roomCreated', ({ roomCode }) => {
     currentRoomCode = roomCode;
@@ -104,9 +99,7 @@ socket.on('joinedRoom', ({ roomCode }) => {
 });
 
 socket.on('updatePlayers', (players) => {
-    // Esta línea es para depurar. Aparecerá en la consola del navegador.
-    console.log('Lista de jugadores actualizada recibida:', players); 
-    
+    console.log('Evento "updatePlayers" recibido. Jugadores:', players); // Línea de depuración
     playersList.innerHTML = '';
     players.forEach(player => {
         const li = document.createElement('li');
@@ -120,17 +113,13 @@ socket.on('newRound', ({ actorName, movieList }) => {
     resultsSection.classList.add('hidden');
     actorNameEl.innerText = `Actor: ${actorName}`;
     voteStatus.innerText = '';
-    
     createMovieSelectors(movieList);
-
     roundSection.classList.remove('hidden');
     submitSelectionBtn.disabled = false;
 });
 
 socket.on('updateVoteCount', ({ received, total }) => {
-    if (received < total) {
-        voteStatus.innerText = `Esperando... (${received}/${total} jugadores han votado)`;
-    }
+    if (received < total) voteStatus.innerText = `Esperando... (${received}/${total} jugadores han votado)`;
 });
 
 socket.on('roundResult', ({ correctMovies, playerScores, updatedPlayers }) => {
@@ -157,6 +146,4 @@ socket.on('gameOver', ({ winnerName }) => {
     homeScreen.classList.remove('hidden');
 });
 
-socket.on('error', (message) => {
-    alert(`Error: ${message}`);
-});
+socket.on('error', (message) => { alert(`Error: ${message}`); });

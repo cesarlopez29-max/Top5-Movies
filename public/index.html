@@ -5,20 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Top 5 Movies Game</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-
-    <header class="main-header">
-        <h1>🎬 Top 5 Movies 🌟</h1>
-    </header>
-
+    <header class="main-header"><h1>🎬 Top 5 Movies 🌟</h1></header>
     <main id="app-container">
         <div id="home-screen">
             <h2>Bienvenido</h2>
-            <p>Introduce tu nombre y crea o únete a una sala para empezar a jugar.</p>
+            <p>Introduce tu nombre y crea o únete a una sala.</p>
             <input type="text" id="playerName" placeholder="Tu nombre" autocomplete="off">
             <hr>
             <div class="room-actions">
@@ -32,25 +26,20 @@
                 </div>
             </div>
         </div>
-
         <div id="game-screen" class="hidden">
             <div class="game-header">
                 <h2>Sala: <span id="roomCodeDisplay"></span></h2>
                 <button id="start-game-btn" class="start-button">¡Empezar Juego!</button>
             </div>
-            
             <h3>Jugadores en la sala:</h3>
             <ul id="players-list"></ul>
-            
             <div id="round-section" class="hidden">
                 <h3 id="actor-name"></h3>
                 <p>Elige 5 películas de la lista:</p>
-                <div id="movie-selectors-container">
-                    </div>
+                <div id="movie-selectors-container"></div>
                 <button id="submit-selection-btn">🎬 Enviar Selección</button>
                 <div id="vote-status"></div>
             </div>
-            
             <div id="results-section" class="hidden">
                 <h4>🏆 Resultados de la Ronda 🏆</h4>
                 <p>Las 5 películas correctas eran:</p>
@@ -58,7 +47,6 @@
             </div>
         </div>
     </main>
-
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="client.js"></script>
 </body>
