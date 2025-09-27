@@ -36,14 +36,22 @@ io.on('connection', (socket) => {
         }
     });
 
+    // --- FUNCIÓN CORREGIDA ---
     socket.on('joinRoom', async ({ roomCode, playerName }) => {
         try {
             const room = await GameRoom.findOne({ roomCode: roomCode.toUpperCase() });
             if (room) {
+                // 1. Unir al jugador al canal de comunicación PRIMERO
+                socket.join(roomCode);
+
+                // 2. Añadir al jugador a la lista en la base de datos
                 room.players.push({ id: socket.id, name: playerName, score: 0 });
                 await room.save();
-                socket.join(roomCode);
+                
+                // 3. Notificar al jugador que se ha unido
                 socket.emit('joinedRoom', { roomCode });
+
+                // 4. Enviar la lista de jugadores actualizada a TODOS en la sala
                 io.to(roomCode).emit('updatePlayers', room.players);
             } else {
                 socket.emit('error', 'La sala no existe.');
@@ -52,6 +60,7 @@ io.on('connection', (socket) => {
             socket.emit('error', 'Error al unirse a la sala.');
         }
     });
+    // -------------------------
 
     socket.on('startGame', ({ roomCode }) => {
         startNewRound(roomCode);
@@ -93,7 +102,7 @@ async function startNewRound(roomCode) {
         const peopleResponse = await axios.get(`https://api.themoviedb.org/3/person/popular`, {
             params: { 
                 api_key: TMDB_API_KEY, 
-                language: 'es-ES' // CAMBIO: Se ha cambiado a Español de España
+                language: 'es-ES'
             }
         });
 
@@ -102,7 +111,7 @@ async function startNewRound(roomCode) {
         const creditsResponse = await axios.get(`https://api.themoviedb.org/3/person/${randomPerson.id}/movie_credits`, {
             params: { 
                 api_key: TMDB_API_KEY, 
-                language: 'es-ES' // CAMBIO: Se ha cambiado a Español de España
+                language: 'es-ES'
             }
         });
         
