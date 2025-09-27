@@ -1,5 +1,5 @@
 // ¡¡¡DEJAREMOS ESTA LÍNEA ASÍ POR AHORA!!!
-const socket = io('URL_DEL_BACKEND_DE_RENDER_IRA_AQUI');
+const socket = io('https://top5-movies.onrender.com');
 
 const homeScreen = document.getElementById('home-screen');
 const createRoomBtn = document.getElementById('create-room-btn');
