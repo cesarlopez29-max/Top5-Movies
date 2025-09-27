@@ -84,20 +84,17 @@ async function startNewRound(roomCode) {
         let room = await GameRoom.findOne({ roomCode });
         if (!room) return;
         
-        // --- LÓGICA DE SELECCIÓN DE ACTOR MEJORADA ---
-        // Se elige una página aleatoria (entre las primeras 10) para obtener más variedad de actores.
         const randomPage = Math.floor(Math.random() * 10) + 1;
         const peopleResponse = await axios.get(`https://api.themoviedb.org/3/person/popular`, {
             params: { 
                 api_key: TMDB_API_KEY, 
                 language: 'es-ES',
-                page: randomPage // Se usa la página aleatoria
+                page: randomPage
             }
         });
 
         let availableActors = peopleResponse.data.results.filter(person => !room.usedActors.includes(person.id));
         
-        // Si en la página aleatoria ya han salido todos, se reinicia la lista para evitar un bucle infinito.
         if (availableActors.length === 0) {
             io.to(roomCode).emit('error', '¡Han salido muchos actores! La lista se reiniciará para encontrar nuevos.');
             room.usedActors = [];
@@ -136,6 +133,7 @@ async function startNewRound(roomCode) {
     } catch (error) { console.error('Error al iniciar nueva ronda:', error); }
 }
 
+// --- ESTA FUNCIÓN HA SIDO MODIFICADA ---
 async function calculateResults(roomCode) {
     try {
         const room = await GameRoom.findOne({ roomCode });
@@ -145,32 +143,48 @@ async function calculateResults(roomCode) {
         const selections = roomSelections[roomCode];
         const roundScores = [];
 
+        // Se calculan y suman los puntos de la ronda para todos los jugadores
         room.players.forEach(player => {
             const playerSelection = selections[player.id] || [];
             const hits = playerSelection.filter(title => correctMovieTitles.includes(title)).length;
             
             let pointsThisRound = hits * 2;
-            if (hits === 5) pointsThisRound += 5;
+            if (hits === 5) {
+                pointsThisRound += 5;
+            }
             player.score += pointsThisRound;
 
             roundScores.push({ player, hits, selection: playerSelection });
         });
         
+        // Se envían los resultados de la ronda
         io.to(roomCode).emit('roundResult', { 
             correctMovies: room.currentActor.topMovies, 
             playerScores: roundScores.map(rs => ({ player: { name: rs.player.name }, hits: rs.hits, selection: rs.selection })), 
             updatedPlayers: room.players 
         });
 
-        const winner = room.players.find(p => p.score >= room.targetScore);
-        if (winner) {
-            io.to(roomCode).emit('gameOver', { winnerName: winner.name });
+        // --- LÓGICA DE FIN DE PARTIDA MEJORADA ---
+        const isGameOver = room.players.some(p => p.score >= room.targetScore);
+
+        if (isGameOver) {
+            // Si al menos un jugador ha alcanzado la meta, encontramos al que tiene más puntos
+            const maxScore = Math.max(...room.players.map(p => p.score));
+            const winners = room.players.filter(p => p.score === maxScore);
+            const winnerNames = winners.map(w => w.name).join(' y '); // Maneja empates
+            
+            io.to(roomCode).emit('gameOver', { winnerName: winnerNames });
             delete roomSelections[roomCode];
         } else {
+            // Si nadie ha llegado a la meta, se prepara la siguiente ronda
             setTimeout(() => startNewRound(roomCode), 10000);
         }
+        // ------------------------------------------
+        
         await room.save();
-    } catch (error) { console.error('Error calculando resultados:', error); }
+    } catch (error) { 
+        console.error('Error calculando resultados:', error); 
+    }
 }
 
 const PORT = process.env.PORT || 3000;
