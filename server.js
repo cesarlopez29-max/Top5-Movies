@@ -8,12 +8,12 @@ const mongoose = require('mongoose');
 const GameRoom = require('./models/GameRoom');
 
 const app = express();
-app.use(cors()); // Usar cors sin opciones específicas es más permisivo y bueno para empezar
+app.use(cors()); // Permite conexiones desde otros dominios
 
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: "*", // Permite todas las conexiones
+    origin: "*", // Acepta conexiones de cualquier origen
     methods: ["GET", "POST"]
   }
 });
@@ -22,6 +22,7 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('Conectado a MongoDB'))
     .catch(err => console.error('Error al conectar a MongoDB:', err));
 
+// Endpoint para la búsqueda de películas con autocompletado
 app.get('/search-movies', async (req, res) => {
     const { query } = req.query;
     if (!query) return res.json({ results: [] });
@@ -36,16 +37,16 @@ app.get('/search-movies', async (req, res) => {
     }
 });
 
+// Lógica principal del juego
 io.on('connection', (socket) => {
     console.log(`Nuevo jugador conectado: ${socket.id}`);
 
-    // --- Lógica para crear salas ---
     socket.on('createRoom', async ({ playerName, targetScore }) => {
         const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
         try {
             const newRoom = new GameRoom({
                 roomCode,
-                targetScore,
+                targetScore: parseInt(targetScore, 10),
                 players: [{ id: socket.id, name: playerName, score: 0 }]
             });
             await newRoom.save();
@@ -53,15 +54,13 @@ io.on('connection', (socket) => {
             socket.emit('roomCreated', { roomCode });
             io.to(roomCode).emit('updatePlayers', newRoom.players);
         } catch (error) {
-            console.error("Error al crear la sala:", error);
             socket.emit('error', 'No se pudo crear la sala.');
         }
     });
 
-    // --- Lógica para unirse a salas ---
     socket.on('joinRoom', async ({ roomCode, playerName }) => {
         try {
-            const room = await GameRoom.findOne({ roomCode });
+            const room = await GameRoom.findOne({ roomCode: roomCode.toUpperCase() });
             if (room) {
                 room.players.push({ id: socket.id, name: playerName, score: 0 });
                 await room.save();
@@ -76,50 +75,72 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- LÓGICA PARA INICIAR EL JUEGO (ESTA ES LA PARTE CLAVE) ---
-    socket.on('startGame', async ({ roomCode }) => {
-        console.log(`Iniciando juego en la sala ${roomCode}`); // Para depurar
-        // Aquí deberías llamar a la función que inicia la primera ronda.
-        // Por ejemplo: startNewRound(roomCode);
-        
-        // --- Añade aquí la función startNewRound si no la tienes ---
-        // Esta función busca un actor y emite el evento 'newRound'
+    socket.on('startGame', ({ roomCode }) => {
+        startNewRound(roomCode);
     });
 
-    // --- Lógica para recibir selecciones ---
     socket.on('submitSelection', async ({ roomCode, selection }) => {
-        // ... (Tu lógica para manejar las selecciones)
+        try {
+            const room = await GameRoom.findOne({ roomCode });
+            if (!room) return;
+            
+            // Guardar la selección del jugador (esta parte es conceptual y se puede mejorar)
+            const player = room.players.find(p => p.id === socket.id);
+            if (player) {
+                player.currentSelection = selection.filter(movie => movie.trim() !== '');
+            }
+            
+            // Contar cuántos jugadores han enviado su selección
+            let selectionsCount = room.players.filter(p => p.currentSelection && p.currentSelection.length > 0).length;
+            
+            io.to(roomCode).emit('updateVoteCount', { received: selectionsCount, total: room.players.length });
+
+            if (selectionsCount === room.players.length) {
+                calculateResults(roomCode);
+            }
+        } catch (error) {
+            console.error(error);
+        }
     });
 
-    // --- Lógica para desconexiones ---
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
         console.log(`Jugador desconectado: ${socket.id}`);
-        // ... (Tu lógica para manejar desconexiones)
+        // Lógica para eliminar al jugador de la sala en la base de datos
     });
 });
-
-// --- ASEGÚRATE DE TENER ESTAS FUNCIONES FUERA DEL BLOQUE io.on('connection',...) ---
 
 async function startNewRound(roomCode) {
     try {
         const room = await GameRoom.findOne({ roomCode });
         if (!room) return;
+
+        // Limpiar selecciones anteriores
+        room.players.forEach(p => p.currentSelection = []);
+
+        // Obtener un actor popular de TMDb
+        const TMDB_API_KEY = process.env.TMDB_API_KEY;
+        const peopleResponse = await axios.get(`${'https://api.themoviedb.org/3'}/person/popular`, {
+            params: { api_key: TMDB_API_KEY, language: 'es-MX' }
+        });
+        const randomPerson = peopleResponse.data.results[Math.floor(Math.random() * peopleResponse.data.results.length)];
+
+        // Obtener las películas de esa persona
+        const creditsResponse = await axios.get(`${'https://api.themoviedb.org/3'}/person/${randomPerson.id}/movie_credits`, {
+            params: { api_key: TMDB_API_KEY, language: 'es-MX' }
+        });
+
+        const topMovies = creditsResponse.data.cast
+            .filter(movie => movie.vote_count > 200) // Filtro para calidad
+            .sort((a, b) => b.vote_average - a.vote_average)
+            .slice(0, 5)
+            .map(movie => movie.title);
         
-        // Lógica para obtener un actor de la API de TMDb
-        // ...
-        
-        // Cuando tengas el actor, guárdalo y notifica a los jugadores
-        const actor = { name: "Tom Hanks", topMovies: ["Forrest Gump", "Saving Private Ryan"] }; // Ejemplo
-        room.currentActor = actor;
+        if (topMovies.length < 5) {
+            startNewRound(roomCode); // Reintentar si no tiene suficientes películas conocidas
+            return;
+        }
+
+        room.currentActor = { name: randomPerson.name, topMovies };
         await room.save();
         
-        io.to(roomCode).emit('newRound', { actorName: actor.name });
-    } catch (error) {
-        console.error("Error al iniciar nueva ronda:", error);
-    }
-}
-  // Aquí iría el resto de la lógica de Socket.IO (joinRoom, startGame, etc.)
-});
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Servidor escuchando en el puerto ${PORT}`));
+        io
