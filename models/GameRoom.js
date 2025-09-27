@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
+// El esquema del jugador ya no guarda la selección de la ronda actual
 const playerSchema = new Schema({
     id: { type: String, required: true },
     name: { type: String, required: true },

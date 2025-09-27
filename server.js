@@ -9,36 +9,30 @@ const GameRoom = require('./models/GameRoom');
 
 const app = express();
 app.use(cors());
-
 const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
+const io = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] }});
+
+// Objeto temporal para manejar las selecciones de la ronda actual en memoria
+const roomSelections = {};
 
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('Conectado a MongoDB'))
     .catch(err => console.error('Error al conectar a MongoDB:', err));
 
 io.on('connection', (socket) => {
-    console.log(`Nuevo jugador conectado: ${socket.id}`);
-
     socket.on('createRoom', async ({ playerName, targetScore }) => {
         const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
         try {
             const newRoom = new GameRoom({
                 roomCode,
                 targetScore: parseInt(targetScore, 10),
-                players: [{ id: socket.id, name: playerName, score: 0, currentSelection: [] }]
+                players: [{ id: socket.id, name: playerName, score: 0 }]
             });
             await newRoom.save();
             socket.join(roomCode);
             socket.emit('roomCreated', { roomCode });
             io.to(roomCode).emit('updatePlayers', newRoom.players);
         } catch (error) {
-            console.error(error);
             socket.emit('error', 'No se pudo crear la sala.');
         }
     });
@@ -47,7 +41,7 @@ io.on('connection', (socket) => {
         try {
             const room = await GameRoom.findOne({ roomCode: roomCode.toUpperCase() });
             if (room) {
-                room.players.push({ id: socket.id, name: playerName, score: 0, currentSelection: [] });
+                room.players.push({ id: socket.id, name: playerName, score: 0 });
                 await room.save();
                 socket.join(roomCode);
                 socket.emit('joinedRoom', { roomCode });
@@ -65,42 +59,38 @@ io.on('connection', (socket) => {
     });
 
     socket.on('submitSelection', async ({ roomCode, selection }) => {
-        try {
-            const room = await GameRoom.findOne({ roomCode });
-            if (!room) return;
+        const room = await GameRoom.findOne({ roomCode });
+        if (!room) return;
+        
+        // Guardar la selección en nuestro objeto temporal en memoria
+        if (!roomSelections[roomCode]) {
+            roomSelections[roomCode] = {};
+        }
+        roomSelections[roomCode][socket.id] = selection;
 
-            const player = room.players.find(p => p.id === socket.id);
-            if (player) {
-                player.currentSelection = selection;
-                room.markModified('players'); // Esencial para que Mongoose guarde cambios en arrays anidados
-            }
-            await room.save();
-            
-            const updatedRoom = await GameRoom.findOne({ roomCode });
-            const selectionsCount = updatedRoom.players.filter(p => p.currentSelection && p.currentSelection.length > 0).length;
-            
-            io.to(roomCode).emit('updateVoteCount', { received: selectionsCount, total: updatedRoom.players.length });
+        const selectionsCount = Object.keys(roomSelections[roomCode]).length;
+        const totalPlayers = room.players.length;
 
-            if (selectionsCount === updatedRoom.players.length) {
-                calculateResults(roomCode);
-            }
-        } catch (error) {
-            console.error("Error en submitSelection:", error);
+        io.to(roomCode).emit('updateVoteCount', { received: selectionsCount, total: totalPlayers });
+
+        // Comprobar si todos han votado
+        if (selectionsCount === totalPlayers) {
+            calculateResults(roomCode);
         }
     });
 
-    socket.on('disconnect', async () => {
-        console.log(`Jugador desconectado: ${socket.id}`);
-        // Aquí se implementaría la lógica para eliminar al jugador de la sala en la DB
-    });
+    socket.on('disconnect', async () => { console.log(`Jugador desconectado: ${socket.id}`); });
 });
 
 async function startNewRound(roomCode) {
     try {
+        // Limpiar las selecciones de la ronda anterior para esta sala
+        if (roomSelections[roomCode]) {
+            delete roomSelections[roomCode];
+        }
+
         const room = await GameRoom.findOne({ roomCode });
         if (!room) return;
-
-        room.players.forEach(p => { p.currentSelection = []; });
         
         const TMDB_API_KEY = process.env.TMDB_API_KEY;
         const peopleResponse = await axios.get(`https://api.themoviedb.org/3/person/popular`, {
@@ -111,7 +101,7 @@ async function startNewRound(roomCode) {
         const creditsResponse = await axios.get(`https://api.themoviedb.org/3/person/${randomPerson.id}/movie_credits`, {
             params: { api_key: TMDB_API_KEY, language: 'es-MX' }
         });
-
+        
         const allMovies = [...new Set(creditsResponse.data.cast.map(movie => movie.title))].sort();
         const topMovies = creditsResponse.data.cast
             .filter(movie => movie.vote_count > 200)
@@ -120,7 +110,7 @@ async function startNewRound(roomCode) {
             .map(movie => movie.title);
         
         if (topMovies.length < 5 || allMovies.length < 5) {
-            return startNewRound(roomCode); // Reintenta si el actor no tiene suficientes películas
+            return startNewRound(roomCode);
         }
 
         room.currentActor = { name: randomPerson.name, topMovies };
@@ -135,14 +125,16 @@ async function startNewRound(roomCode) {
 async function calculateResults(roomCode) {
     try {
         const room = await GameRoom.findOne({ roomCode });
-        if (!room) return;
+        if (!room || !roomSelections[roomCode]) return;
 
         const correctMovies = room.currentActor.topMovies;
+        const selections = roomSelections[roomCode]; // Usamos las selecciones de memoria
         const roundScores = [];
 
         room.players.forEach(player => {
-            const hits = player.currentSelection.filter(movie => correctMovies.includes(movie)).length;
-            roundScores.push({ player, hits, selection: player.currentSelection });
+            const playerSelection = selections[player.id] || [];
+            const hits = playerSelection.filter(movie => correctMovies.includes(movie)).length;
+            roundScores.push({ player, hits, selection: playerSelection });
         });
 
         roundScores.sort((a, b) => b.hits - a.hits);
@@ -157,14 +149,12 @@ async function calculateResults(roomCode) {
             updatedPlayers: room.players 
         });
 
-        room.players.forEach(p => { p.currentSelection = []; });
-        room.markModified('players');
-
         const winner = room.players.find(p => p.score >= room.targetScore);
         if (winner) {
             io.to(roomCode).emit('gameOver', { winnerName: winner.name });
+            delete roomSelections[roomCode]; // Limpiar memoria al final del juego
         } else {
-            setTimeout(() => startNewRound(roomCode), 10000); // Espera 10s para la siguiente ronda
+            setTimeout(() => startNewRound(roomCode), 10000);
         }
         await room.save();
     } catch (error) {
