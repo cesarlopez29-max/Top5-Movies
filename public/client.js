@@ -51,7 +51,7 @@ submitSelectionBtn.addEventListener('click', () => {
     const selection = Array.from(document.querySelectorAll('.movie-selector')).map(select => select.value);
     const uniqueSelection = [...new Set(selection.filter(movie => movie !== 'default'))];
     
-    if (uniqueSelection.length < 5) {
+    if (uniqueSelection.length !== 5) {
         alert("Por favor, elige 5 películas diferentes.");
         return;
     }
@@ -63,18 +63,16 @@ submitSelectionBtn.addEventListener('click', () => {
 
 // --- Lógica para crear los menús desplegables ---
 function createMovieSelectors(movieList) {
-    movieSelectorsContainer.innerHTML = ''; // Limpiar contenedor
+    movieSelectorsContainer.innerHTML = '';
     for (let i = 0; i < 5; i++) {
         const select = document.createElement('select');
         select.className = 'movie-selector';
         
-        // Opción por defecto
         const defaultOption = document.createElement('option');
         defaultOption.value = 'default';
         defaultOption.innerText = `-- Elige la película #${i + 1} --`;
         select.appendChild(defaultOption);
 
-        // Llenar con la lista de películas
         movieList.forEach(movie => {
             const option = document.createElement('option');
             option.value = movie;
@@ -120,7 +118,6 @@ socket.on('newRound', ({ actorName, movieList }) => {
     actorNameEl.innerText = `Actor: ${actorName}`;
     voteStatus.innerText = '';
     
-    // Crear los menús desplegables con la lista de películas recibida
     createMovieSelectors(movieList);
 
     roundSection.classList.remove('hidden');
@@ -136,14 +133,12 @@ socket.on('updateVoteCount', ({ received, total }) => {
 socket.on('roundResult', ({ correctMovies, playerScores, updatedPlayers }) => {
     voteStatus.innerText = '';
     roundSection.classList.add('hidden');
-    // Actualizar puntuaciones
     playersList.innerHTML = '';
     updatedPlayers.forEach(player => {
         const li = document.createElement('li');
         li.innerText = `${player.name} - ${player.score} puntos`;
         playersList.appendChild(li);
     });
-    // Mostrar películas correctas
     correctMoviesList.innerHTML = '';
     correctMovies.forEach(movie => {
         const li = document.createElement('li');

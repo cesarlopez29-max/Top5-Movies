@@ -68,11 +68,11 @@ io.on('connection', (socket) => {
         try {
             const room = await GameRoom.findOne({ roomCode });
             if (!room) return;
-            
+
             const player = room.players.find(p => p.id === socket.id);
             if (player) {
-                player.currentSelection = selection.filter(movie => movie && movie.trim() !== '' && movie !== 'default');
-                room.markModified('players');
+                player.currentSelection = selection;
+                room.markModified('players'); // Esencial para que Mongoose guarde cambios en arrays anidados
             }
             await room.save();
             
@@ -91,7 +91,7 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', async () => {
         console.log(`Jugador desconectado: ${socket.id}`);
-        // Aquí iría la lógica para eliminar al jugador de la sala en la DB
+        // Aquí se implementaría la lógica para eliminar al jugador de la sala en la DB
     });
 });
 
@@ -112,10 +112,7 @@ async function startNewRound(roomCode) {
             params: { api_key: TMDB_API_KEY, language: 'es-MX' }
         });
 
-        // Obtenemos la filmografía completa y ordenada alfabéticamente
         const allMovies = [...new Set(creditsResponse.data.cast.map(movie => movie.title))].sort();
-
-        // Obtenemos las 5 mejores películas por separado
         const topMovies = creditsResponse.data.cast
             .filter(movie => movie.vote_count > 200)
             .sort((a, b) => b.vote_average - a.vote_average)
@@ -123,13 +120,12 @@ async function startNewRound(roomCode) {
             .map(movie => movie.title);
         
         if (topMovies.length < 5 || allMovies.length < 5) {
-            return startNewRound(roomCode);
+            return startNewRound(roomCode); // Reintenta si el actor no tiene suficientes películas
         }
 
         room.currentActor = { name: randomPerson.name, topMovies };
         await room.save();
         
-        // Enviamos al cliente el nombre del actor y TODA su filmografía
         io.to(roomCode).emit('newRound', { actorName: randomPerson.name, movieList: allMovies });
     } catch (error) {
         console.error('Error al iniciar nueva ronda:', error);
@@ -168,7 +164,7 @@ async function calculateResults(roomCode) {
         if (winner) {
             io.to(roomCode).emit('gameOver', { winnerName: winner.name });
         } else {
-            setTimeout(() => startNewRound(roomCode), 10000);
+            setTimeout(() => startNewRound(roomCode), 10000); // Espera 10s para la siguiente ronda
         }
         await room.save();
     } catch (error) {
