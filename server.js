@@ -14,7 +14,6 @@ const io = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] }});
 
 const roomSelections = {};
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
-const TMDB_IMG_URL = 'https://image.tmdb.org/t/p/w200'; // URL base para los carteles
 
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('Conectado a MongoDB'))
@@ -85,14 +84,22 @@ async function startNewRound(roomCode) {
         let room = await GameRoom.findOne({ roomCode });
         if (!room) return;
         
+        // --- LÓGICA DE SELECCIÓN DE ACTOR MEJORADA ---
+        // Se elige una página aleatoria (entre las primeras 10) para obtener más variedad de actores.
+        const randomPage = Math.floor(Math.random() * 10) + 1;
         const peopleResponse = await axios.get(`https://api.themoviedb.org/3/person/popular`, {
-            params: { api_key: TMDB_API_KEY, language: 'es-ES' }
+            params: { 
+                api_key: TMDB_API_KEY, 
+                language: 'es-ES',
+                page: randomPage // Se usa la página aleatoria
+            }
         });
 
         let availableActors = peopleResponse.data.results.filter(person => !room.usedActors.includes(person.id));
         
+        // Si en la página aleatoria ya han salido todos, se reinicia la lista para evitar un bucle infinito.
         if (availableActors.length === 0) {
-            io.to(roomCode).emit('error', '¡Han salido todos los actores populares! La lista se reiniciará.');
+            io.to(roomCode).emit('error', '¡Han salido muchos actores! La lista se reiniciará para encontrar nuevos.');
             room.usedActors = [];
             await room.save();
             availableActors = peopleResponse.data.results;
@@ -105,6 +112,7 @@ async function startNewRound(roomCode) {
             params: { api_key: TMDB_API_KEY, language: 'es-ES' }
         });
         
+        const TMDB_IMG_URL = 'https://image.tmdb.org/t/p/w200';
         const allMovies = creditsResponse.data.cast
             .filter(movie => movie.poster_path)
             .map(movie => ({ title: movie.title, poster: TMDB_IMG_URL + movie.poster_path }))
