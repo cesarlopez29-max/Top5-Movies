@@ -1,7 +1,7 @@
 // ¡¡¡IMPORTANTE!!! Reemplaza esto con la URL de tu backend en Render
 const socket = io('https://top5-movies.onrender.com');
 
-// --- Elementos de la UI ---
+// --- (Declaraciones de elementos UI se mantienen igual) ---
 const homeScreen = document.getElementById('home-screen');
 const gameScreen = document.getElementById('game-screen');
 const createRoomBtn = document.getElementById('create-room-btn');
@@ -16,27 +16,26 @@ const playersList = document.getElementById('players-list');
 const actorNameEl = document.getElementById('actor-name');
 const roundSection = document.getElementById('round-section');
 const resultsSection = document.getElementById('results-section');
-const movieSelectorsContainer = document.getElementById('movie-selectors-container');
+const moviePostersContainer = document.getElementById('movie-posters-container');
 const voteStatus = document.getElementById('vote-status');
 const correctMoviesList = document.getElementById('correct-movies-list');
 
 let currentRoomCode = '';
+let selectedMovies = new Set();
 
 // --- Eventos de Botones ---
 createRoomBtn.addEventListener('click', () => {
     const playerName = playerNameInput.value;
     const targetScore = targetScoreInput.value;
-    if (playerName && targetScore) {
-        socket.emit('createRoom', { playerName, targetScore });
-    } else { alert('Por favor, introduce tu nombre.'); }
+    if (playerName && targetScore) socket.emit('createRoom', { playerName, targetScore });
+    else alert('Por favor, introduce tu nombre.');
 });
 
 joinRoomBtn.addEventListener('click', () => {
     const playerName = playerNameInput.value;
     const roomCode = roomCodeInput.value;
-    if (playerName && roomCode) {
-        socket.emit('joinRoom', { roomCode, playerName });
-    } else { alert('Por favor, introduce tu nombre y el código de la sala.'); }
+    if (playerName && roomCode) socket.emit('joinRoom', { roomCode, playerName });
+    else alert('Por favor, introduce tu nombre y el código de la sala.');
 });
 
 startGameBtn.addEventListener('click', () => {
@@ -44,36 +43,49 @@ startGameBtn.addEventListener('click', () => {
 });
 
 submitSelectionBtn.addEventListener('click', () => {
-    const selection = Array.from(document.querySelectorAll('.movie-selector')).map(select => select.value);
-    const uniqueSelection = [...new Set(selection.filter(movie => movie !== 'default'))];
-    if (uniqueSelection.length !== 5) {
-        alert("Por favor, elige 5 películas diferentes.");
+    if (selectedMovies.size !== 5) {
+        alert("Por favor, elige exactamente 5 películas.");
         return;
     }
-    socket.emit('submitSelection', { roomCode: currentRoomCode, selection: uniqueSelection });
+    socket.emit('submitSelection', { roomCode: currentRoomCode, selection: Array.from(selectedMovies) });
     submitSelectionBtn.disabled = true;
     voteStatus.innerText = '¡Selección enviada! Esperando a los demás...';
 });
 
-// --- Lógica UI ---
-function createMovieSelectors(movieList) {
-    movieSelectorsContainer.innerHTML = '';
-    for (let i = 0; i < 5; i++) {
-        const select = document.createElement('select');
-        select.className = 'movie-selector';
-        const defaultOption = document.createElement('option');
-        defaultOption.value = 'default';
-        defaultOption.innerText = `-- Elige la película #${i + 1} --`;
-        select.appendChild(defaultOption);
-        movieList.forEach(movie => {
-            const option = document.createElement('option');
-            option.value = movie.title;
-            option.dataset.poster = movie.poster;
-            option.innerText = movie.title;
-            select.appendChild(option);
+// --- NUEVA Lógica para crear la parrilla de carteles ---
+function createMoviePosters(movieList) {
+    moviePostersContainer.innerHTML = '';
+    selectedMovies.clear(); // Limpiar selección anterior
+
+    movieList.forEach(movie => {
+        const posterItem = document.createElement('div');
+        posterItem.className = 'poster-item';
+        posterItem.dataset.title = movie.title;
+
+        const img = document.createElement('img');
+        img.src = movie.poster;
+        img.alt = movie.title;
+        img.loading = 'lazy'; // Carga perezosa para mejorar rendimiento
+
+        posterItem.appendChild(img);
+
+        posterItem.addEventListener('click', () => {
+            if (selectedMovies.has(movie.title)) {
+                // Deseleccionar
+                selectedMovies.delete(movie.title);
+                posterItem.classList.remove('selected');
+            } else {
+                // Seleccionar
+                if (selectedMovies.size < 5) {
+                    selectedMovies.add(movie.title);
+                    posterItem.classList.add('selected');
+                } else {
+                    alert('Solo puedes seleccionar 5 películas.');
+                }
+            }
         });
-        movieSelectorsContainer.appendChild(select);
-    }
+        moviePostersContainer.appendChild(posterItem);
+    });
 }
 
 // --- Eventos del Servidor ---
@@ -108,7 +120,9 @@ socket.on('newRound', ({ actorName, movieList }) => {
     resultsSection.classList.add('hidden');
     actorNameEl.innerText = `Actor: ${actorName}`;
     voteStatus.innerText = '';
-    createMovieSelectors(movieList);
+    
+    createMoviePosters(movieList); // Llamar a la nueva función
+
     roundSection.classList.remove('hidden');
     submitSelectionBtn.disabled = false;
 });
@@ -127,7 +141,6 @@ socket.on('roundResult', ({ correctMovies, playerScores, updatedPlayers }) => {
         playersList.appendChild(li);
     });
     correctMoviesList.innerHTML = '';
-    correctMoviesList.className = 'poster-list';
     correctMovies.forEach(movie => {
         const li = document.createElement('li');
         const img = document.createElement('img');
@@ -152,7 +165,6 @@ socket.on('gameOver', ({ winnerName }) => {
     `;
     document.getElementById('play-again-btn').addEventListener('click', () => {
         socket.emit('resetGame', { roomCode: currentRoomCode });
-        // Ocultar el mensaje de fin de partida y los resultados
         document.querySelector('.game-over-container').remove();
         resultsSection.classList.add('hidden');
     });
