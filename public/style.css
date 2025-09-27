@@ -11,7 +11,7 @@ body {
     text-shadow: 2px 2px 4px rgba(0,0,0,0.5); text-align: center;
 }
 #app-container {
-    width: 100%; max-width: 800px; /* Ancho aumentado para los carteles */
+    width: 100%; max-width: 800px;
     background-color: var(--card-bg); padding: 1.5rem; border-radius: 12px;
     box-shadow: 0 10px 20px rgba(0,0,0,0.3); border: 1px solid var(--border-color);
     box-sizing: border-box;
@@ -38,13 +38,13 @@ ul { list-style: none; padding: 0; }
 #players-list li { background: #333; padding: 10px; border-radius: 4px; margin-bottom: 5px; }
 #results-section { background-color: #1a1a1a; padding: 1rem; border-radius: 8px; margin-top: 1rem; }
 
-/* --- NUEVOS ESTILOS PARA LA SELECCIÓN DE CARTELES --- */
+/* --- ESTILOS PARA LA SELECCIÓN DE CARTELES --- */
 .poster-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     gap: 1rem;
     margin: 1.5rem 0;
-    max-height: 400px;
+    max-height: 400px; /* Altura máxima con scroll */
     overflow-y: auto;
     padding: 10px;
     background-color: #1a1a1a;
@@ -55,14 +55,14 @@ ul { list-style: none; padding: 0; }
     border-radius: 8px;
     overflow: hidden;
     position: relative;
-    border: 3px solid transparent;
+    border: 3px solid transparent; /* Borde invisible por defecto */
     transition: transform 0.2s, border-color 0.2s;
 }
 .poster-item:hover {
-    transform: scale(1.05);
+    transform: scale(1.05); /* Efecto al pasar el ratón */
 }
 .poster-item.selected {
-    border-color: var(--primary-color);
+    border-color: var(--primary-color); /* Borde amarillo al seleccionar */
     box-shadow: 0 0 15px var(--primary-color);
 }
 .poster-item img {
@@ -70,7 +70,7 @@ ul { list-style: none; padding: 0; }
     display: block;
 }
 
-/* Estilos para los carteles de resultados */
+/* Estilos para los carteles de resultados (ya los tenías) */
 .poster-list {
     display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; padding: 0;
 }

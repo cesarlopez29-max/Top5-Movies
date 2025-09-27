@@ -1,7 +1,7 @@
 // ¡¡¡IMPORTANTE!!! Reemplaza esto con la URL de tu backend en Render
 const socket = io('https://top5-movies.onrender.com');
 
-// --- (Declaraciones de elementos UI se mantienen igual) ---
+// --- Elementos de la UI ---
 const homeScreen = document.getElementById('home-screen');
 const gameScreen = document.getElementById('game-screen');
 const createRoomBtn = document.getElementById('create-room-btn');
@@ -21,7 +21,7 @@ const voteStatus = document.getElementById('vote-status');
 const correctMoviesList = document.getElementById('correct-movies-list');
 
 let currentRoomCode = '';
-let selectedMovies = new Set();
+let selectedMovies = new Set(); // Usamos un Set para guardar los títulos de las películas seleccionadas
 
 // --- Eventos de Botones ---
 createRoomBtn.addEventListener('click', () => {
@@ -52,10 +52,10 @@ submitSelectionBtn.addEventListener('click', () => {
     voteStatus.innerText = '¡Selección enviada! Esperando a los demás...';
 });
 
-// --- NUEVA Lógica para crear la parrilla de carteles ---
+// --- Lógica para crear la parrilla de carteles interactiva ---
 function createMoviePosters(movieList) {
     moviePostersContainer.innerHTML = '';
-    selectedMovies.clear(); // Limpiar selección anterior
+    selectedMovies.clear(); // Limpiar la selección de la ronda anterior
 
     movieList.forEach(movie => {
         const posterItem = document.createElement('div');
@@ -65,22 +65,23 @@ function createMoviePosters(movieList) {
         const img = document.createElement('img');
         img.src = movie.poster;
         img.alt = movie.title;
-        img.loading = 'lazy'; // Carga perezosa para mejorar rendimiento
+        img.loading = 'lazy'; // Carga perezosa para mejorar el rendimiento
 
         posterItem.appendChild(img);
 
+        // Lógica de clic para seleccionar/deseleccionar
         posterItem.addEventListener('click', () => {
             if (selectedMovies.has(movie.title)) {
-                // Deseleccionar
+                // Si ya está seleccionada, la deseleccionamos
                 selectedMovies.delete(movie.title);
                 posterItem.classList.remove('selected');
             } else {
-                // Seleccionar
+                // Si no está seleccionada, la añadimos (si no hemos llegado a 5)
                 if (selectedMovies.size < 5) {
                     selectedMovies.add(movie.title);
                     posterItem.classList.add('selected');
                 } else {
-                    alert('Solo puedes seleccionar 5 películas.');
+                    alert('Solo puedes seleccionar 5 películas. Deselecciona una para elegir otra.');
                 }
             }
         });
@@ -88,7 +89,7 @@ function createMoviePosters(movieList) {
     });
 }
 
-// --- Eventos del Servidor ---
+// --- Eventos del Servidor (sin cambios en la lógica, solo para asegurar que esté completo) ---
 socket.on('connect_error', (err) => { alert(`Error de conexión: ${err.message}.`); });
 
 socket.on('roomCreated', ({ roomCode }) => {
