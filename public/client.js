@@ -1,9 +1,11 @@
 // ¡¡¡IMPORTANTE!!! Reemplaza esto con la URL de tu backend en Render
 const socket = io('https://top5-movies.onrender.com');
+const BACKEND_URL = 'https://top5-movies.onrender.com'; // Haz lo mismo aquí
 
 // --- Elementos de la UI ---
 const homeScreen = document.getElementById('home-screen');
 const gameScreen = document.getElementById('game-screen');
+// (El resto de las declaraciones de elementos que ya tenías)
 const createRoomBtn = document.getElementById('create-room-btn');
 const joinRoomBtn = document.getElementById('join-room-btn');
 const startGameBtn = document.getElementById('start-game-btn');
@@ -28,6 +30,8 @@ createRoomBtn.addEventListener('click', () => {
     const targetScore = targetScoreInput.value;
     if (playerName && targetScore) {
         socket.emit('createRoom', { playerName, targetScore });
+    } else {
+        alert('Por favor, introduce tu nombre.');
     }
 });
 
@@ -36,12 +40,13 @@ joinRoomBtn.addEventListener('click', () => {
     const roomCode = roomCodeInput.value;
     if (playerName && roomCode) {
         socket.emit('joinRoom', { roomCode, playerName });
+    } else {
+        alert('Por favor, introduce tu nombre y el código de la sala.');
     }
 });
 
 startGameBtn.addEventListener('click', () => {
     socket.emit('startGame', { roomCode: currentRoomCode });
-    startGameBtn.classList.add('hidden');
 });
 
 submitSelectionBtn.addEventListener('click', () => {
@@ -52,6 +57,19 @@ submitSelectionBtn.addEventListener('click', () => {
 });
 
 // --- Lógica de Autocompletado ---
+async function fetchMovieSuggestions(query) {
+    if (query.length < 3) return [];
+    try {
+        const response = await fetch(`$https://top5-movies.onrender.com/search-movies?query=${encodeURIComponent(query)}`);
+        if (!response.ok) return [];
+        const movies = await response.json();
+        return movies;
+    } catch (error) {
+        console.error("Error fetching movie suggestions:", error);
+        return [];
+    }
+}
+
 function createMovieInput(index) {
     const container = document.createElement('div');
     container.className = 'autocomplete-container';
@@ -60,47 +78,46 @@ function createMovieInput(index) {
     input.className = 'movie-input';
     input.placeholder = `Película ${index + 1}`;
     const suggestions = document.createElement('div');
-    suggestions.className = 'autocomplete-suggestions';
+    suggestions.className = 'autocomplete-suggestions hidden';
     container.appendChild(input);
     container.appendChild(suggestions);
 
     input.addEventListener('input', async () => {
-        const query = input.value;
-        if (query.length < 3) {
-            suggestions.innerHTML = '';
-            suggestions.style.display = 'none';
-            return;
-        }
-        // Añadimos la URL completa del backend
-        const response = await fetch(`https://top5-movies.onrender.com/search-movies?query=${encodeURIComponent(query)}`);
-        const movies = await response.json();
+        const movies = await fetchMovieSuggestions(input.value);
         suggestions.innerHTML = '';
-        if (movies && movies.length > 0) {
-            suggestions.style.display = 'block';
+        if (movies.length > 0) {
+            suggestions.classList.remove('hidden');
             movies.forEach(movie => {
                 const item = document.createElement('div');
                 item.className = 'suggestion-item';
                 item.innerText = movie.title;
                 item.addEventListener('click', () => {
                     input.value = movie.title;
-                    suggestions.innerHTML = '';
-                    suggestions.style.display = 'none';
+                    suggestions.classList.add('hidden');
                 });
                 suggestions.appendChild(item);
             });
+        } else {
+            suggestions.classList.add('hidden');
         }
     });
     return container;
 }
 
+
 // --- Escuchando Eventos del Servidor ---
+socket.on('connect_error', (err) => {
+    alert(`Error de conexión con el servidor: ${err.message}. Asegúrate de que el servidor esté funcionando y la URL sea correcta.`);
+});
+
 socket.on('roomCreated', ({ roomCode }) => {
     currentRoomCode = roomCode;
     roomCodeDisplay.innerText = roomCode;
     homeScreen.classList.add('hidden');
     gameScreen.classList.remove('hidden');
-    startGameBtn.classList.remove('hidden'); // Muestra el botón de empezar
 });
+
+// (Pega el resto de los listeners de socket.io que ya tenías: 'joinedRoom', 'updatePlayers', 'newRound', 'gameOver', etc.)
 
 socket.on('joinedRoom', ({ roomCode }) => {
     currentRoomCode = roomCode;
