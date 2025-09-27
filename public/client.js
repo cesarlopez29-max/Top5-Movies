@@ -1,10 +1,8 @@
 // ¡¡¡IMPORTANTE!!! Reemplaza esto con la URL de tu backend en Render
 const socket = io('https://top5-movies.onrender.com');
 
-
 const homeScreen = document.getElementById('home-screen');
 const gameScreen = document.getElementById('game-screen');
-// ... (resto de elementos UI)
 const createRoomBtn = document.getElementById('create-room-btn');
 const joinRoomBtn = document.getElementById('join-room-btn');
 const startGameBtn = document.getElementById('start-game-btn');
@@ -23,7 +21,6 @@ const correctMoviesList = document.getElementById('correct-movies-list');
 
 let currentRoomCode = '';
 
-// --- Eventos de Botones ---
 createRoomBtn.addEventListener('click', () => {
     const playerName = playerNameInput.value;
     const targetScore = targetScoreInput.value;
@@ -60,7 +57,6 @@ submitSelectionBtn.addEventListener('click', () => {
     voteStatus.innerText = '¡Selección enviada! Esperando a los demás...';
 });
 
-// --- Lógica UI ---
 function createMovieSelectors(movieList) {
     movieSelectorsContainer.innerHTML = '';
     for (let i = 0; i < 5; i++) {
@@ -80,8 +76,9 @@ function createMovieSelectors(movieList) {
     }
 }
 
-// --- Eventos del Servidor ---
-socket.on('connect_error', (err) => { alert(`Error de conexión: ${err.message}.`); });
+socket.on('connect_error', (err) => {
+    alert(`Error de conexión: ${err.message}.`);
+});
 
 socket.on('roomCreated', ({ roomCode }) => {
     currentRoomCode = roomCode;
@@ -99,7 +96,7 @@ socket.on('joinedRoom', ({ roomCode }) => {
 });
 
 socket.on('updatePlayers', (players) => {
-    console.log('Evento "updatePlayers" recibido. Jugadores:', players); // Línea de depuración
+    console.log('Evento "updatePlayers" recibido. Jugadores:', players);
     playersList.innerHTML = '';
     players.forEach(player => {
         const li = document.createElement('li');

@@ -31,53 +31,69 @@ io.on('connection', (socket) => {
             socket.join(roomCode);
             socket.emit('roomCreated', { roomCode });
             io.to(roomCode).emit('updatePlayers', newRoom.players);
-        } catch (error) { socket.emit('error', 'No se pudo crear la sala.'); }
+        } catch (error) {
+            socket.emit('error', 'No se pudo crear la sala.');
+        }
     });
 
-    // --- FUNCIÓN REFORZADA ---
     socket.on('joinRoom', async ({ roomCode, playerName }) => {
         try {
             let room = await GameRoom.findOne({ roomCode: roomCode.toUpperCase() });
             if (room) {
-                // Añadir al jugador a la base de datos
-                room.players.push({ id: socket.id, name: playerName, score: 0 });
-                await room.save(); // Guardar primero
+                // Prevenir duplicados
+                const playerExists = room.players.some(p => p.id === socket.id);
+                if (playerExists) return;
 
-                // Unirse al canal de comunicación
+                // 1. Añadir al jugador y guardar en la base de datos
+                room.players.push({ id: socket.id, name: playerName, score: 0 });
+                await room.save();
+
+                // 2. Unir al jugador al canal de comunicación de Socket.IO
                 socket.join(roomCode);
                 
-                // Volver a leer la sala para asegurar los datos más frescos
+                // 3. Volver a leer la sala para asegurar que tenemos los datos más frescos
                 const updatedRoom = await GameRoom.findOne({ roomCode: roomCode.toUpperCase() });
 
-                // Notificar al nuevo jugador y enviar la lista actualizada a TODOS
+                // 4. Notificar al nuevo jugador que se ha unido
                 socket.emit('joinedRoom', { roomCode });
+                
+                // 5. Enviar la lista de jugadores 100% actualizada a TODOS en la sala
                 io.to(roomCode).emit('updatePlayers', updatedRoom.players);
             } else {
                 socket.emit('error', 'La sala no existe.');
             }
         } catch (error) {
+            console.error('Error en joinRoom:', error);
             socket.emit('error', 'Error al unirse a la sala.');
         }
     });
-    // -------------------------
 
-    socket.on('startGame', ({ roomCode }) => { startNewRound(roomCode); });
+    socket.on('startGame', ({ roomCode }) => {
+        startNewRound(roomCode);
+    });
 
     socket.on('submitSelection', async ({ roomCode, selection }) => {
         const room = await GameRoom.findOne({ roomCode });
         if (!room) return;
-        if (!roomSelections[roomCode]) { roomSelections[roomCode] = {}; }
+        
+        if (!roomSelections[roomCode]) {
+            roomSelections[roomCode] = {};
+        }
         roomSelections[roomCode][socket.id] = selection;
+
         const selectionsCount = Object.keys(roomSelections[roomCode]).length;
         const totalPlayers = room.players.length;
+
         io.to(roomCode).emit('updateVoteCount', { received: selectionsCount, total: totalPlayers });
-        if (selectionsCount === totalPlayers) { calculateResults(roomCode); }
+
+        if (selectionsCount === totalPlayers) {
+            calculateResults(roomCode);
+        }
     });
 
     socket.on('disconnect', async () => { console.log(`Jugador desconectado: ${socket.id}`); });
 });
 
-// (El resto de las funciones: startNewRound y calculateResults se mantienen igual que en la versión anterior)
 async function startNewRound(roomCode) {
     try {
         if (roomSelections[roomCode]) delete roomSelections[roomCode];
