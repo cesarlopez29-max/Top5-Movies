@@ -31,7 +31,7 @@ io.on('connection', (socket) => {
                 roomCode, gameType,
                 targetScore: parseInt(targetScore, 10),
                 players: [{ id: socket.id, name: playerName, score: 0 }],
-                usedActors: [], usedFootballers: []
+                usedActors: [], usedFootballers: [], tiedPlayerIds: []
             });
             await newRoom.save();
             socket.join(roomCode);
@@ -65,13 +65,13 @@ io.on('connection', (socket) => {
         const room = await GameRoom.findOne({ roomCode });
         if (!room) return;
         if (!roomSelections[roomCode]) roomSelections[roomCode] = {};
-        roomSelections[roomCode][socket.id] = selection;
         
         let playersInRound = room.players;
         if (room.isSuddenDeath) {
             playersInRound = room.players.filter(p => room.tiedPlayerIds.includes(p.id));
         }
         
+        roomSelections[roomCode][socket.id] = selection;
         const selectionsCount = Object.keys(roomSelections[roomCode]).length;
         const totalPlayersInRound = playersInRound.length;
 
@@ -155,10 +155,62 @@ async function startMoviesRound(roomCode) {
         io.to(roomCode).emit('newRound', { gameType: 'top5movies', actorName: randomPerson.name, movieList: allMovies, isSuddenDeath: room.isSuddenDeath, tiedPlayerIds: room.tiedPlayerIds });
     } catch (error) { console.error('Error al iniciar ronda de películas:', error); }
 }
+
 async function calculateMoviesResults(roomCode) {
     try {
         let room = await GameRoom.findOne({ roomCode });
-        // ... (Lógica de muerte súbita y cálculo de resultados para películas)
+        if (!room || !roomSelections[roomCode]) return;
+
+        const correctMovieTitles = room.currentActor.topMovies.map(m => m.title);
+        const selections = roomSelections[roomCode];
+
+        if (room.isSuddenDeath) {
+            let maxHits = -1;
+            let winnersOfRound = [];
+            room.players.filter(p => room.tiedPlayerIds.includes(p.id)).forEach(player => {
+                const playerSelection = selections[player.id] || [];
+                const hits = playerSelection.filter(title => correctMovieTitles.includes(title)).length;
+                if (hits > maxHits) {
+                    maxHits = hits;
+                    winnersOfRound = [player];
+                } else if (hits === maxHits) {
+                    winnersOfRound.push(player);
+                }
+            });
+            const winnerNames = winnersOfRound.map(w => w.name).join(' y ');
+            io.to(roomCode).emit('gameOver', { winnerName: winnerNames, finalScores: room.players.map(p => ({ name: p.name, score: p.score })) });
+            room.isSuddenDeath = false;
+            room.tiedPlayerIds = [];
+            await room.save();
+            return;
+        }
+        
+        const roundScores = [];
+        room.players.forEach(player => {
+            const playerSelection = selections[player.id] || [];
+            const hits = playerSelection.filter(title => correctMovieTitles.includes(title)).length;
+            let pointsThisRound = hits * 2;
+            if (hits === 5) pointsThisRound += 5;
+            player.score += pointsThisRound;
+            roundScores.push({ player, hits, selection: playerSelection });
+        });
+        
+        io.to(roomCode).emit('roundResult', { gameType: 'top5movies', correctMovies: room.currentActor.topMovies, playerScores: roundScores.map(rs => ({ player: { name: rs.player.name }, hits: rs.hits, selection: rs.selection })), updatedPlayers: room.players });
+
+        const isGameOver = room.players.some(p => p.score >= room.targetScore);
+        if (isGameOver) {
+            const maxScore = Math.max(...room.players.map(p => p.score));
+            const winners = room.players.filter(p => p.score === maxScore);
+            if (winners.length > 1) {
+                room.isSuddenDeath = true;
+                room.tiedPlayerIds = winners.map(p => p.id);
+                io.to(roomCode).emit('suddenDeathTie', { tiedPlayers: winners.map(p => p.name) });
+                setTimeout(() => startMoviesRound(roomCode), 5000);
+            } else {
+                io.to(roomCode).emit('gameOver', { winnerName: winners[0].name, finalScores: room.players.map(p => ({ name: p.name, score: p.score })) });
+            }
+        }
+        await room.save();
     } catch (error) { console.error('Error calculando resultados de películas:', error); }
 }
 
@@ -179,9 +231,16 @@ async function startFootballRound(roomCode) {
             { id: "133653", name: "Zlatan Ibrahimović" }, { id: "133744", name: "Andrés Iniesta" },
             { id: "133664", name: "Luka Modrić" }, { id: "133708", name: "Sergio Ramos" }
         ];
-        const availablePlayers = famousPlayers.filter(p => !usedTodayIds.includes(p.id) && !room.usedFootballers.includes(p.id));
         
-        if (availablePlayers.length === 0) { io.to(roomCode).emit('error', 'No se encontraron futbolistas nuevos.'); return; }
+        let availablePlayers = famousPlayers.filter(p => !usedTodayIds.includes(p.id) && !room.usedFootballers.includes(p.id));
+        
+        if (availablePlayers.length === 0) {
+            io.to(roomCode).emit('error', '¡Ya han salido todos los futbolistas de la lista! Se reiniciará para esta partida.');
+            room.usedFootballers = [];
+            await room.save();
+            availablePlayers = famousPlayers.filter(p => !usedTodayIds.includes(p.id));
+        }
+        
         const randomPlayer = availablePlayers[Math.floor(Math.random() * availablePlayers.length)];
 
         room.usedFootballers.push(randomPlayer.id);
@@ -189,18 +248,20 @@ async function startFootballRound(roomCode) {
         await newUsedFootballer.save().catch(e => {});
 
         const response = await axios.get(`https://www.thesportsdb.com/api/v1/json/${SPORTSDB_API_KEY}/lookupformerteams.php?id=${randomPlayer.id}`);
-        const correctClubs = response.data.formerteams ? response.data.formerteams.map(team => team.strFormerTeam) : [];
+        let correctClubs = response.data.formerteams ? response.data.formerteams.map(team => team.strFormerTeam) : [];
 
-        // Añadir el club actual si existe
         const playerDetails = await axios.get(`https://www.thesportsdb.com/api/v1/json/${SPORTSDB_API_KEY}/lookupplayer.php?id=${randomPlayer.id}`);
-        if(playerDetails.data.players[0].strTeam) correctClubs.push(playerDetails.data.players[0].strTeam);
+        if(playerDetails.data.players && playerDetails.data.players[0].strTeam && playerDetails.data.players[0].strTeam !== "_Retired"){
+             correctClubs.push(playerDetails.data.players[0].strTeam);
+        }
+        correctClubs = [...new Set(correctClubs)]; // Eliminar duplicados
 
         const leagueResponse = await axios.get(`https://www.thesportsdb.com/api/v1/json/${SPORTSDB_API_KEY}/search_all_teams.php?l=Spanish%20La%20Liga`);
         const wrongClubs = leagueResponse.data.teams
             .map(team => team.strTeam)
             .filter(teamName => !correctClubs.includes(teamName));
 
-        let allClubOptions = [...new Set(correctClubs)];
+        let allClubOptions = [...correctClubs];
         while (allClubOptions.length < 10 && wrongClubs.length > 0) {
             const randomIndex = Math.floor(Math.random() * wrongClubs.length);
             allClubOptions.push(wrongClubs.splice(randomIndex, 1)[0]);
@@ -213,13 +274,35 @@ async function startFootballRound(roomCode) {
         io.to(roomCode).emit('newRound', { gameType: 'top5clubes', footballerName: randomPlayer.name, clubOptions: allClubOptions, isSuddenDeath: room.isSuddenDeath, tiedPlayerIds: room.tiedPlayerIds });
     } catch (error) { console.error("Error en startFootballRound:", error); }
 }
+
 async function calculateFootballResults(roomCode) {
     try {
         let room = await GameRoom.findOne({ roomCode });
-        // ... (Lógica de muerte súbita y cálculo de resultados para fútbol)
+        if (!room || !roomSelections[roomCode]) return;
+        
+        const selections = roomSelections[roomCode];
+
+        if (room.isSuddenDeath) {
+            // (Lógica de Muerte Súbita para fútbol)
+        }
+        
+        const correctClubs = room.currentFootballer.correctClubs;
+        room.players.forEach(player => {
+            const playerSelection = selections[player.id] || [];
+            const hits = playerSelection.filter(club => correctClubs.includes(club)).length;
+            player.score += (hits * 2);
+        });
+
+        io.to(roomCode).emit('roundResult', { gameType: 'top5clubes', correctClubs, updatedPlayers: room.players });
+
+        const isGameOver = room.players.some(p => p.score >= room.targetScore);
+        if (isGameOver) {
+            // (Lógica de fin de partida y empate para fútbol)
+        }
+        
+        await room.save();
     } catch (error) { console.error("Error en calculateFootballResults:", error); }
 }
-
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Servidor escuchando en el puerto ${PORT}`));
