@@ -32,20 +32,23 @@ const continueBtn = document.getElementById('continue-btn');
 const continueStatus = document.getElementById('continue-status');
 
 let currentRoomCode = '';
+let myPlayerId = ''; // Guardamos nuestro ID para la lógica de muerte súbita
 
 // --- Eventos de Botones ---
 createRoomBtn.addEventListener('click', () => {
     const playerName = playerNameInput.value;
     const targetScore = targetScoreInput.value;
-    if (playerName && targetScore) socket.emit('createRoom', { playerName, targetScore });
-    else alert('Por favor, introduce tu nombre.');
+    if (playerName && targetScore) {
+        socket.emit('createRoom', { playerName, targetScore });
+    } else { alert('Por favor, introduce tu nombre.'); }
 });
 
 joinRoomBtn.addEventListener('click', () => {
     const playerName = playerNameInput.value;
     const roomCode = roomCodeInput.value;
-    if (playerName && roomCode) socket.emit('joinRoom', { roomCode, playerName });
-    else alert('Por favor, introduce tu nombre y el código de la sala.');
+    if (playerName && roomCode) {
+        socket.emit('joinRoom', { roomCode, playerName });
+    } else { alert('Por favor, introduce tu nombre y el código de la sala.'); }
 });
 
 startGameBtn.addEventListener('click', () => {
@@ -102,6 +105,10 @@ function createMovieSelectors(movieList) {
 }
 
 // --- Eventos del Servidor ---
+socket.on('connect', () => {
+    myPlayerId = socket.id; // Guardar nuestro ID de socket al conectar
+});
+
 socket.on('connect_error', (err) => { alert(`Error de conexión: ${err.message}.`); });
 
 socket.on('roomCreated', ({ roomCode }) => {
@@ -128,17 +135,31 @@ socket.on('updatePlayers', (players) => {
     });
 });
 
-socket.on('newRound', ({ actorName, movieList }) => {
+socket.on('newRound', ({ actorName, movieList, isSuddenDeath, tiedPlayerIds }) => {
     continueBtn.disabled = false;
     continueStatus.innerText = '';
     startGameBtn.classList.add('hidden');
     resultsSection.classList.add('hidden');
     podiumScreen.classList.add('hidden');
-    actorNameEl.innerText = `Actor: ${actorName}`;
     voteStatus.innerText = '';
-    createMovieSelectors(movieList);
-    roundSection.classList.remove('hidden');
     submitSelectionBtn.disabled = false;
+    
+    if (isSuddenDeath) {
+        actorNameEl.innerHTML = `🔥 ¡MUERTE SÚBITA! 🔥<br>Actor: ${actorName}`;
+        const amITied = tiedPlayerIds.includes(myPlayerId);
+        if (!amITied) {
+            movieSelectorsContainer.innerHTML = '<p style="text-align: center; color: var(--text-muted);">Solo los jugadores empatados pueden votar en esta ronda.</p>';
+            submitSelectionBtn.disabled = true;
+            voteStatus.innerText = "Esperando el resultado del desempate...";
+        } else {
+             createMovieSelectors(movieList);
+        }
+    } else {
+        actorNameEl.innerText = `Actor: ${actorName}`;
+        createMovieSelectors(movieList);
+    }
+    
+    roundSection.classList.remove('hidden');
 });
 
 socket.on('updateVoteCount', ({ received, total }) => {
@@ -155,6 +176,7 @@ socket.on('roundResult', ({ correctMovies, playerScores, updatedPlayers }) => {
         playersList.appendChild(li);
     });
     correctMoviesList.innerHTML = '';
+    correctMoviesList.className = 'poster-list';
     correctMovies.forEach(movie => {
         const li = document.createElement('li');
         const img = document.createElement('img');
@@ -174,6 +196,11 @@ socket.on('updateContinueCount', ({ received, total }) => {
     continueStatus.innerText = `Esperando para la siguiente ronda... (${received}/${total} listos)`;
 });
 
+socket.on('suddenDeathTie', ({ tiedPlayers }) => {
+    resultsSection.classList.add('hidden');
+    alert(`¡EMPATE! Se jugará una ronda de muerte súbita entre: ${tiedPlayers.join(' y ')}`);
+});
+
 socket.on('gameOver', ({ winnerName, finalScores }) => {
     gameScreen.classList.add('hidden');
     podiumScreen.classList.remove('hidden');
@@ -182,10 +209,12 @@ socket.on('gameOver', ({ winnerName, finalScores }) => {
         firstPlaceName.innerText = sortedPlayers[0].name;
         firstPlaceScore.innerText = `${sortedPlayers[0].score} pts`;
     } else { firstPlaceName.innerText = ''; firstPlaceScore.innerText = ''; }
+    
     if (sortedPlayers[1]) {
         secondPlaceName.innerText = sortedPlayers[1].name;
         secondPlaceScore.innerText = `${sortedPlayers[1].score} pts`;
     } else { secondPlaceName.innerText = ''; secondPlaceScore.innerText = ''; }
+
     if (sortedPlayers[2]) {
         thirdPlaceName.innerText = sortedPlayers[2].name;
         thirdPlaceScore.innerText = `${sortedPlayers[2].score} pts`;

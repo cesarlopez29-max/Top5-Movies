@@ -20,7 +20,8 @@ const gameRoomSchema = new Schema({
         name: String, 
         topMovies: [movieSchema]
     },
-    usedActors: [{ type: Number }]
+    usedActors: [{ type: Number }],
+    isSuddenDeath: { type: Boolean, default: false } // Para rondas de desempate
 }, { timestamps: true });
 
 const GameRoom = mongoose.model('GameRoom', gameRoomSchema);

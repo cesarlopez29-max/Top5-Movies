@@ -6,6 +6,7 @@ const cors = require('cors');
 require('dotenv').config();
 const mongoose = require('mongoose');
 const GameRoom = require('./models/GameRoom');
+const UsedActor = require('./models/UsedActor'); // Importamos el nuevo modelo
 
 const app = express();
 app.use(cors());
@@ -13,7 +14,6 @@ const server = http.createServer(app);
 const io = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] }});
 
 const roomSelections = {};
-const nextRoundRequests = {}; // Objeto para manejar los clics en "Continuar"
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 
 mongoose.connect(process.env.MONGO_URI)
@@ -57,32 +57,31 @@ io.on('connection', (socket) => {
         const room = await GameRoom.findOne({ roomCode });
         if (!room) return;
         if (!roomSelections[roomCode]) roomSelections[roomCode] = {};
+        
+        const playersForRound = room.isSuddenDeath 
+            ? room.players.filter(p => room.tiedPlayerIds.includes(p.id)) 
+            : room.players;
+
         roomSelections[roomCode][socket.id] = selection;
         const selectionsCount = Object.keys(roomSelections[roomCode]).length;
-        const totalPlayers = room.players.length;
-        io.to(roomCode).emit('updateVoteCount', { received: selectionsCount, total: totalPlayers });
-        if (selectionsCount === totalPlayers) calculateResults(roomCode);
-    });
+        const totalPlayersInRound = playersForRound.length;
+        
+        io.to(roomCode).emit('updateVoteCount', { received: selectionsCount, total: totalPlayersInRound });
 
-    socket.on('requestNextRound', async ({ roomCode }) => {
-        const room = await GameRoom.findOne({ roomCode });
-        if (!room) return;
-        if (!nextRoundRequests[roomCode]) nextRoundRequests[roomCode] = new Set();
-        nextRoundRequests[roomCode].add(socket.id);
-        const requestsCount = nextRoundRequests[roomCode].size;
-        const totalPlayers = room.players.length;
-        io.to(roomCode).emit('updateContinueCount', { received: requestsCount, total: totalPlayers });
-        if (requestsCount === totalPlayers) {
-            startNewRound(roomCode);
+        if (selectionsCount === totalPlayersInRound) {
+            calculateResults(roomCode);
         }
     });
     
     socket.on('resetGame', async ({ roomCode }) => {
         const room = await GameRoom.findOne({ roomCode });
         if (!room) return;
+        
         room.players.forEach(player => player.score = 0);
         room.usedActors = [];
+        room.isSuddenDeath = false;
         await room.save();
+
         io.to(roomCode).emit('updatePlayers', room.players);
         startNewRound(roomCode);
     });
@@ -93,99 +92,110 @@ io.on('connection', (socket) => {
 async function startNewRound(roomCode) {
     try {
         if (roomSelections[roomCode]) delete roomSelections[roomCode];
-        if (nextRoundRequests[roomCode]) delete nextRoundRequests[roomCode];
         let room = await GameRoom.findOne({ roomCode });
         if (!room) return;
         
-        const randomPage = Math.floor(Math.random() * 10) + 1;
-        const peopleResponse = await axios.get(`https://api.themoviedb.org/3/person/popular`, {
-            params: { api_key: TMDB_API_KEY, language: 'es-ES', page: randomPage }
-        });
+        const usedToday = await UsedActor.find({});
+        const usedTodayIds = usedToday.map(a => a.actorId);
 
-        let availableActors = peopleResponse.data.results.filter(person => !room.usedActors.includes(person.id));
-        
+        let availableActors = [];
+        let attempts = 0;
+        while (availableActors.length === 0 && attempts < 5) {
+            const randomPage = Math.floor(Math.random() * 20) + 1;
+            const peopleResponse = await axios.get(`https://api.themoviedb.org/3/person/popular`, {
+                params: { api_key: TMDB_API_KEY, language: 'es-ES', page: randomPage }
+            });
+            availableActors = peopleResponse.data.results.filter(person => !usedTodayIds.includes(person.id) && !room.usedActors.includes(person.id));
+            attempts++;
+        }
+
         if (availableActors.length === 0) {
-            io.to(roomCode).emit('error', '¡Han salido muchos actores! La lista se reiniciará.');
-            room.usedActors = [];
-            await room.save();
-            availableActors = peopleResponse.data.results;
+            io.to(roomCode).emit('error', 'No se encontraron actores nuevos.');
+            return;
         }
         
         const randomPerson = availableActors[Math.floor(Math.random() * availableActors.length)];
+        
         room.usedActors.push(randomPerson.id);
+        const newUsedActor = new UsedActor({ actorId: randomPerson.id });
+        await newUsedActor.save().catch(err => {});
 
-        const creditsResponse = await axios.get(`https://api.themoviedb.org/3/person/${randomPerson.id}/movie_credits`, {
-            params: { api_key: TMDB_API_KEY, language: 'es-ES' }
-        });
-        
+        const creditsResponse = await axios.get(`https://api.themoviedb.org/3/person/${randomPerson.id}/movie_credits`, { params: { api_key: TMDB_API_KEY, language: 'es-ES' }});
         const TMDB_IMG_URL = 'https://image.tmdb.org/t/p/w200';
-        const allMovies = creditsResponse.data.cast
-            .filter(movie => movie.poster_path)
-            .map(movie => ({ title: movie.title, poster: TMDB_IMG_URL + movie.poster_path }))
-            .filter((movie, index, self) => index === self.findIndex((m) => m.title === movie.title))
-            .sort((a, b) => a.title.localeCompare(b.title));
-
-        const topMovies = creditsResponse.data.cast
-            .filter(movie => movie.vote_count > 200 && movie.poster_path)
-            .sort((a, b) => b.vote_average - a.vote_average)
-            .slice(0, 5)
-            .map(movie => ({ title: movie.title, poster: TMDB_IMG_URL + movie.poster_path }));
+        const allMovies = creditsResponse.data.cast.filter(m => m.poster_path).map(m => ({ title: m.title, poster: TMDB_IMG_URL + m.poster_path })).filter((m, i, self) => i === self.findIndex(t => t.title === m.title)).sort((a, b) => a.title.localeCompare(b.title));
+        const topMovies = creditsResponse.data.cast.filter(m => m.vote_count > 200 && m.poster_path).sort((a, b) => b.vote_average - a.vote_average).slice(0, 5).map(m => ({ title: m.title, poster: TMDB_IMG_URL + m.poster_path }));
         
-        if (topMovies.length < 5 || allMovies.length < 5) {
-            return startNewRound(roomCode);
-        }
+        if (topMovies.length < 5 || allMovies.length < 5) return startNewRound(roomCode);
 
         room.currentActor = { name: randomPerson.name, topMovies };
         await room.save();
         
-        io.to(roomCode).emit('newRound', { actorName: randomPerson.name, movieList: allMovies });
+        io.to(roomCode).emit('newRound', { actorName: randomPerson.name, movieList: allMovies, isSuddenDeath: room.isSuddenDeath, tiedPlayerIds: room.tiedPlayerIds });
     } catch (error) { console.error('Error al iniciar nueva ronda:', error); }
 }
 
 async function calculateResults(roomCode) {
     try {
-        const room = await GameRoom.findOne({ roomCode });
+        let room = await GameRoom.findOne({ roomCode });
         if (!room || !roomSelections[roomCode]) return;
 
         const correctMovieTitles = room.currentActor.topMovies.map(m => m.title);
         const selections = roomSelections[roomCode];
-        const roundScores = [];
+        
+        if (room.isSuddenDeath) {
+            let maxHits = -1;
+            let winnersOfRound = [];
+            
+            room.players.filter(p => room.tiedPlayerIds.includes(p.id)).forEach(player => {
+                const playerSelection = selections[player.id] || [];
+                const hits = playerSelection.filter(title => correctMovieTitles.includes(title)).length;
+                if (hits > maxHits) {
+                    maxHits = hits;
+                    winnersOfRound = [player];
+                } else if (hits === maxHits) {
+                    winnersOfRound.push(player);
+                }
+            });
 
+            const winnerNames = winnersOfRound.map(w => w.name).join(' y ');
+            io.to(roomCode).emit('gameOver', { winnerName: winnerNames, finalScores: room.players.map(p => ({ name: p.name, score: p.score })) });
+            room.isSuddenDeath = false;
+            room.tiedPlayerIds = [];
+            await room.save();
+            return;
+        }
+        
+        const roundScores = [];
         room.players.forEach(player => {
             const playerSelection = selections[player.id] || [];
             const hits = playerSelection.filter(title => correctMovieTitles.includes(title)).length;
-            
             let pointsThisRound = hits * 2;
             if (hits === 5) pointsThisRound += 5;
             player.score += pointsThisRound;
             roundScores.push({ player, hits, selection: playerSelection });
         });
         
-        io.to(roomCode).emit('roundResult', { 
-            correctMovies: room.currentActor.topMovies, 
-            playerScores: roundScores.map(rs => ({ player: { name: rs.player.name }, hits: rs.hits, selection: rs.selection })), 
-            updatedPlayers: room.players 
-        });
+        io.to(roomCode).emit('roundResult', { correctMovies: room.currentActor.topMovies, playerScores: roundScores.map(rs => ({ player: { name: rs.player.name }, hits: rs.hits, selection: rs.selection })), updatedPlayers: room.players });
 
         const isGameOver = room.players.some(p => p.score >= room.targetScore);
-
         if (isGameOver) {
             const maxScore = Math.max(...room.players.map(p => p.score));
             const winners = room.players.filter(p => p.score === maxScore);
-            const winnerNames = winners.map(w => w.name).join(' y ');
             
-            io.to(roomCode).emit('gameOver', { 
-                winnerName: winnerNames, 
-                finalScores: room.players.map(p => ({ name: p.name, score: p.score }))
-            });
-            delete roomSelections[roomCode];
+            if (winners.length > 1) {
+                room.isSuddenDeath = true;
+                room.tiedPlayerIds = winners.map(p => p.id);
+                io.to(roomCode).emit('suddenDeathTie', { tiedPlayers: winners.map(p => p.name) });
+                setTimeout(() => startNewRound(roomCode), 5000);
+            } else {
+                io.to(roomCode).emit('gameOver', { winnerName: winners[0].name, finalScores: room.players.map(p => ({ name: p.name, score: p.score })) });
+            }
+        } else {
+            setTimeout(() => startNewRound(roomCode), 10000);
         }
-        // Se ha eliminado el setTimeout. El juego espera a la acción del usuario.
         
         await room.save();
-    } catch (error) { 
-        console.error('Error calculando resultados:', error); 
-    }
+    } catch (error) { console.error('Error calculando resultados:', error); }
 }
 
 const PORT = process.env.PORT || 3000;
