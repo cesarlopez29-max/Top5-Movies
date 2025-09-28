@@ -28,6 +28,7 @@ button {
     margin-bottom: 0.5rem;
 }
 button:hover { transform: translateY(-2px); background-color: #ffde40; }
+button:disabled { background-color: #555; color: #888; cursor: not-allowed; transform: none; }
 .room-actions { display: flex; gap: 1rem; align-items: stretch; flex-direction: column; }
 @media (min-width: 500px) { .room-actions { flex-direction: row; } }
 #create-game, #join-game { display: flex; flex-direction: column; flex: 1; }
@@ -45,8 +46,6 @@ select.movie-selector { margin-bottom: 0.5rem; }
     display: flex; flex-direction: column; align-items: center;
 }
 .poster-list img { width: 100%; border-radius: 8px; border: 2px solid var(--border-color); margin-bottom: 0.5rem; }
-
-/* ESTILOS DEL PODIO */
 #podium-screen { text-align: center; }
 #podium-screen h2 { color: var(--primary-color); margin-bottom: 1.5rem; }
 .podium-container {
@@ -56,11 +55,9 @@ select.movie-selector { margin-bottom: 0.5rem; }
 .podium-step {
     display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
     padding-bottom: 10px; border-radius: 8px 8px 0 0; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-    position: relative; width: 120px; /* Ancho aumentado */
+    position: relative; width: 120px;
 }
-.step-box {
-    width: 100%; font-weight: bold; color: #fff; border-radius: 0 0 8px 8px; box-sizing: border-box;
-}
+.step-box { width: 100%; font-weight: bold; color: #fff; border-radius: 0 0 8px 8px; box-sizing: border-box; }
 .first-place { height: 200px; background: linear-gradient(to top, var(--gold), #FFEB75); border: 2px solid #CCA707; order: 2; z-index: 2; }
 .first-place .step-box { height: 80px; font-size: 2.5rem; color: #444; background: linear-gradient(to top, var(--gold), #FFEB75); border-top: 2px solid #CCA707; }
 .second-place { height: 150px; background: linear-gradient(to top, var(--silver), #E0E0E0); border: 2px solid #999; order: 1; z-index: 1; }
@@ -69,7 +66,19 @@ select.movie-selector { margin-bottom: 0.5rem; }
 .third-place .step-box { height: 60px; font-size: 2rem; color: #666; background: linear-gradient(to top, var(--bronze), #E6AD70); border-top: 2px solid #A85A00; }
 .player-name { font-size: 1.2rem; font-weight: 600; margin-bottom: 5px; color: #333; }
 .player-score { font-size: 1rem; color: #555; margin-bottom: 10px; }
-#podium-screen button {
-    margin-top: 0.5rem; width: 60%; display: block; margin-left: auto; margin-right: auto;
-}
+#podium-screen button { margin-top: 0.5rem; width: 60%; display: block; margin-left: auto; margin-right: auto; }
 #back-home-podium-btn { background-color: #555; color: #fff; }
+
+/* NUEVOS ESTILOS */
+#continue-btn {
+    width: 60%;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 1.5rem;
+}
+#continue-status {
+    margin-top: 1rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}

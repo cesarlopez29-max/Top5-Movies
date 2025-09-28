@@ -13,6 +13,7 @@ const server = http.createServer(app);
 const io = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] }});
 
 const roomSelections = {};
+const nextRoundRequests = {}; // Objeto para manejar los clics en "Continuar"
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 
 mongoose.connect(process.env.MONGO_URI)
@@ -62,15 +63,26 @@ io.on('connection', (socket) => {
         io.to(roomCode).emit('updateVoteCount', { received: selectionsCount, total: totalPlayers });
         if (selectionsCount === totalPlayers) calculateResults(roomCode);
     });
+
+    socket.on('requestNextRound', async ({ roomCode }) => {
+        const room = await GameRoom.findOne({ roomCode });
+        if (!room) return;
+        if (!nextRoundRequests[roomCode]) nextRoundRequests[roomCode] = new Set();
+        nextRoundRequests[roomCode].add(socket.id);
+        const requestsCount = nextRoundRequests[roomCode].size;
+        const totalPlayers = room.players.length;
+        io.to(roomCode).emit('updateContinueCount', { received: requestsCount, total: totalPlayers });
+        if (requestsCount === totalPlayers) {
+            startNewRound(roomCode);
+        }
+    });
     
     socket.on('resetGame', async ({ roomCode }) => {
         const room = await GameRoom.findOne({ roomCode });
         if (!room) return;
-        
         room.players.forEach(player => player.score = 0);
         room.usedActors = [];
         await room.save();
-
         io.to(roomCode).emit('updatePlayers', room.players);
         startNewRound(roomCode);
     });
@@ -81,22 +93,19 @@ io.on('connection', (socket) => {
 async function startNewRound(roomCode) {
     try {
         if (roomSelections[roomCode]) delete roomSelections[roomCode];
+        if (nextRoundRequests[roomCode]) delete nextRoundRequests[roomCode];
         let room = await GameRoom.findOne({ roomCode });
         if (!room) return;
         
         const randomPage = Math.floor(Math.random() * 10) + 1;
         const peopleResponse = await axios.get(`https://api.themoviedb.org/3/person/popular`, {
-            params: { 
-                api_key: TMDB_API_KEY, 
-                language: 'es-ES',
-                page: randomPage
-            }
+            params: { api_key: TMDB_API_KEY, language: 'es-ES', page: randomPage }
         });
 
         let availableActors = peopleResponse.data.results.filter(person => !room.usedActors.includes(person.id));
         
         if (availableActors.length === 0) {
-            io.to(roomCode).emit('error', '¡Han salido muchos actores! La lista se reiniciará para encontrar nuevos.');
+            io.to(roomCode).emit('error', '¡Han salido muchos actores! La lista se reiniciará.');
             room.usedActors = [];
             await room.save();
             availableActors = peopleResponse.data.results;
@@ -147,11 +156,8 @@ async function calculateResults(roomCode) {
             const hits = playerSelection.filter(title => correctMovieTitles.includes(title)).length;
             
             let pointsThisRound = hits * 2;
-            if (hits === 5) {
-                pointsThisRound += 5;
-            }
+            if (hits === 5) pointsThisRound += 5;
             player.score += pointsThisRound;
-
             roundScores.push({ player, hits, selection: playerSelection });
         });
         
@@ -168,16 +174,13 @@ async function calculateResults(roomCode) {
             const winners = room.players.filter(p => p.score === maxScore);
             const winnerNames = winners.map(w => w.name).join(' y ');
             
-            // --- CAMBIO IMPORTANTE ---
-            // Envía todas las puntuaciones finales al cliente para que pueda construir el podio.
             io.to(roomCode).emit('gameOver', { 
                 winnerName: winnerNames, 
                 finalScores: room.players.map(p => ({ name: p.name, score: p.score }))
             });
             delete roomSelections[roomCode];
-        } else {
-            setTimeout(() => startNewRound(roomCode), 10000);
         }
+        // Se ha eliminado el setTimeout. El juego espera a la acción del usuario.
         
         await room.save();
     } catch (error) { 

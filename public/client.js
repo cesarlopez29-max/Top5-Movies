@@ -19,7 +19,6 @@ const resultsSection = document.getElementById('results-section');
 const movieSelectorsContainer = document.getElementById('movie-selectors-container');
 const voteStatus = document.getElementById('vote-status');
 const correctMoviesList = document.getElementById('correct-movies-list');
-
 const podiumScreen = document.getElementById('podium-screen');
 const firstPlaceName = document.getElementById('first-place-name');
 const firstPlaceScore = document.getElementById('first-place-score');
@@ -29,6 +28,8 @@ const thirdPlaceName = document.getElementById('third-place-name');
 const thirdPlaceScore = document.getElementById('third-place-score');
 const playAgainPodiumBtn = document.getElementById('play-again-podium-btn');
 const backHomePodiumBtn = document.getElementById('back-home-podium-btn');
+const continueBtn = document.getElementById('continue-btn');
+const continueStatus = document.getElementById('continue-status');
 
 let currentRoomCode = '';
 
@@ -72,6 +73,12 @@ playAgainPodiumBtn.addEventListener('click', () => {
 
 backHomePodiumBtn.addEventListener('click', () => {
     window.location.reload();
+});
+
+continueBtn.addEventListener('click', () => {
+    socket.emit('requestNextRound', { roomCode: currentRoomCode });
+    continueBtn.disabled = true;
+    continueStatus.innerText = '¡Listo! Esperando a los demás...';
 });
 
 // --- Lógica UI ---
@@ -122,9 +129,11 @@ socket.on('updatePlayers', (players) => {
 });
 
 socket.on('newRound', ({ actorName, movieList }) => {
+    continueBtn.disabled = false;
+    continueStatus.innerText = '';
     startGameBtn.classList.add('hidden');
     resultsSection.classList.add('hidden');
-    podiumScreen.classList.add('hidden'); // Ocultar podio si se reinicia
+    podiumScreen.classList.add('hidden');
     actorNameEl.innerText = `Actor: ${actorName}`;
     voteStatus.innerText = '';
     createMovieSelectors(movieList);
@@ -154,28 +163,29 @@ socket.on('roundResult', ({ correctMovies, playerScores, updatedPlayers }) => {
         const p = document.createElement('p');
         p.innerText = movie.title;
         li.appendChild(img);
-li.appendChild(p);
+        li.appendChild(p);
         correctMoviesList.appendChild(li);
     });
     resultsSection.classList.remove('hidden');
+    continueStatus.innerText = 'Haz clic en continuar cuando estés listo.';
+});
+
+socket.on('updateContinueCount', ({ received, total }) => {
+    continueStatus.innerText = `Esperando para la siguiente ronda... (${received}/${total} listos)`;
 });
 
 socket.on('gameOver', ({ winnerName, finalScores }) => {
     gameScreen.classList.add('hidden');
     podiumScreen.classList.remove('hidden');
-
     const sortedPlayers = finalScores.sort((a, b) => b.score - a.score);
-
     if (sortedPlayers[0]) {
         firstPlaceName.innerText = sortedPlayers[0].name;
         firstPlaceScore.innerText = `${sortedPlayers[0].score} pts`;
     } else { firstPlaceName.innerText = ''; firstPlaceScore.innerText = ''; }
-    
     if (sortedPlayers[1]) {
         secondPlaceName.innerText = sortedPlayers[1].name;
         secondPlaceScore.innerText = `${sortedPlayers[1].score} pts`;
     } else { secondPlaceName.innerText = ''; secondPlaceScore.innerText = ''; }
-
     if (sortedPlayers[2]) {
         thirdPlaceName.innerText = sortedPlayers[2].name;
         thirdPlaceScore.innerText = `${sortedPlayers[2].score} pts`;
