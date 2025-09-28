@@ -18,9 +18,9 @@ const gameRoomSchema = new Schema({
     targetScore: { type: Number, required: true, default: 10 },
     currentActor: { 
         name: String, 
-        topMovies: [movieSchema] // Ahora guarda título y póster
+        topMovies: [movieSchema]
     },
-    usedActors: [{ type: Number }] // Guarda los IDs de los actores ya usados
+    usedActors: [{ type: Number }]
 }, { timestamps: true });
 
 const GameRoom = mongoose.model('GameRoom', gameRoomSchema);

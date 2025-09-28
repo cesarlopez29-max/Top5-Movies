@@ -38,8 +38,7 @@
             <div id="round-section" class="hidden">
                 <h3 id="actor-name"></h3>
                 <p>Elige 5 películas de la lista:</p>
-                <div id="movie-selectors-container">
-                    </div>
+                <div id="movie-selectors-container"></div>
                 <button id="submit-selection-btn">🎬 Enviar Selección</button>
                 <div id="vote-status"></div>
             </div>
@@ -48,6 +47,29 @@
                 <p>Las 5 películas correctas eran:</p>
                 <ul id="correct-movies-list" class="poster-list"></ul>
             </div>
+        </div>
+        
+        <div id="podium-screen" class="hidden">
+            <h2>🎉 ¡Fin de la Partida! 🎉</h2>
+            <div class="podium-container">
+                <div class="podium-step second-place">
+                    <p class="player-name" id="second-place-name"></p>
+                    <p class="player-score" id="second-place-score"></p>
+                    <div class="step-box">2</div>
+                </div>
+                <div class="podium-step first-place">
+                    <p class="player-name" id="first-place-name"></p>
+                    <p class="player-score" id="first-place-score"></p>
+                    <div class="step-box">1</div>
+                </div>
+                <div class="podium-step third-place">
+                    <p class="player-name" id="third-place-name"></p>
+                    <p class="player-score" id="third-place-score"></p>
+                    <div class="step-box">3</div>
+                </div>
+            </div>
+            <button id="play-again-podium-btn">Jugar de Nuevo</button>
+            <button id="back-home-podium-btn">Volver al Inicio</button>
         </div>
     </main>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>

@@ -20,27 +20,31 @@ const movieSelectorsContainer = document.getElementById('movie-selectors-contain
 const voteStatus = document.getElementById('vote-status');
 const correctMoviesList = document.getElementById('correct-movies-list');
 
+const podiumScreen = document.getElementById('podium-screen');
+const firstPlaceName = document.getElementById('first-place-name');
+const firstPlaceScore = document.getElementById('first-place-score');
+const secondPlaceName = document.getElementById('second-place-name');
+const secondPlaceScore = document.getElementById('second-place-score');
+const thirdPlaceName = document.getElementById('third-place-name');
+const thirdPlaceScore = document.getElementById('third-place-score');
+const playAgainPodiumBtn = document.getElementById('play-again-podium-btn');
+const backHomePodiumBtn = document.getElementById('back-home-podium-btn');
+
 let currentRoomCode = '';
 
 // --- Eventos de Botones ---
 createRoomBtn.addEventListener('click', () => {
     const playerName = playerNameInput.value;
     const targetScore = targetScoreInput.value;
-    if (playerName && targetScore) {
-        socket.emit('createRoom', { playerName, targetScore });
-    } else {
-        alert('Por favor, introduce tu nombre.');
-    }
+    if (playerName && targetScore) socket.emit('createRoom', { playerName, targetScore });
+    else alert('Por favor, introduce tu nombre.');
 });
 
 joinRoomBtn.addEventListener('click', () => {
     const playerName = playerNameInput.value;
     const roomCode = roomCodeInput.value;
-    if (playerName && roomCode) {
-        socket.emit('joinRoom', { roomCode, playerName });
-    } else {
-        alert('Por favor, introduce tu nombre y el código de la sala.');
-    }
+    if (playerName && roomCode) socket.emit('joinRoom', { roomCode, playerName });
+    else alert('Por favor, introduce tu nombre y el código de la sala.');
 });
 
 startGameBtn.addEventListener('click', () => {
@@ -50,32 +54,39 @@ startGameBtn.addEventListener('click', () => {
 submitSelectionBtn.addEventListener('click', () => {
     const selection = Array.from(document.querySelectorAll('.movie-selector')).map(select => select.value);
     const uniqueSelection = [...new Set(selection.filter(movie => movie !== 'default'))];
-    
     if (uniqueSelection.length !== 5) {
         alert("Por favor, elige 5 películas diferentes.");
         return;
     }
-
     socket.emit('submitSelection', { roomCode: currentRoomCode, selection: uniqueSelection });
     submitSelectionBtn.disabled = true;
     voteStatus.innerText = '¡Selección enviada! Esperando a los demás...';
 });
 
-// --- Lógica para crear los menús desplegables ---
+playAgainPodiumBtn.addEventListener('click', () => {
+    socket.emit('resetGame', { roomCode: currentRoomCode });
+    podiumScreen.classList.add('hidden');
+    gameScreen.classList.remove('hidden');
+    resultsSection.classList.add('hidden');
+});
+
+backHomePodiumBtn.addEventListener('click', () => {
+    window.location.reload();
+});
+
+// --- Lógica UI ---
 function createMovieSelectors(movieList) {
     movieSelectorsContainer.innerHTML = '';
     for (let i = 0; i < 5; i++) {
         const select = document.createElement('select');
         select.className = 'movie-selector';
-        
         const defaultOption = document.createElement('option');
         defaultOption.value = 'default';
         defaultOption.innerText = `-- Elige la película #${i + 1} --`;
         select.appendChild(defaultOption);
-
         movieList.forEach(movie => {
             const option = document.createElement('option');
-            option.value = movie.title; // Usamos el título para la selección
+            option.value = movie.title;
             option.innerText = movie.title;
             select.appendChild(option);
         });
@@ -83,10 +94,8 @@ function createMovieSelectors(movieList) {
     }
 }
 
-// --- Escuchando Eventos del Servidor ---
-socket.on('connect_error', (err) => {
-    alert(`Error de conexión: ${err.message}.`);
-});
+// --- Eventos del Servidor ---
+socket.on('connect_error', (err) => { alert(`Error de conexión: ${err.message}.`); });
 
 socket.on('roomCreated', ({ roomCode }) => {
     currentRoomCode = roomCode;
@@ -115,11 +124,10 @@ socket.on('updatePlayers', (players) => {
 socket.on('newRound', ({ actorName, movieList }) => {
     startGameBtn.classList.add('hidden');
     resultsSection.classList.add('hidden');
+    podiumScreen.classList.add('hidden'); // Ocultar podio si se reinicia
     actorNameEl.innerText = `Actor: ${actorName}`;
     voteStatus.innerText = '';
-    
     createMovieSelectors(movieList);
-
     roundSection.classList.remove('hidden');
     submitSelectionBtn.disabled = false;
 });
@@ -146,25 +154,32 @@ socket.on('roundResult', ({ correctMovies, playerScores, updatedPlayers }) => {
         const p = document.createElement('p');
         p.innerText = movie.title;
         li.appendChild(img);
-        li.appendChild(p);
+li.appendChild(p);
         correctMoviesList.appendChild(li);
     });
     resultsSection.classList.remove('hidden');
 });
 
-socket.on('gameOver', ({ winnerName }) => {
-    resultsSection.innerHTML += `
-        <div class="game-over-container">
-            <h2>🎉 ¡Fin de la partida! 🎉</h2>
-            <p>El ganador es: ${winnerName}</p>
-            <button id="play-again-btn">Jugar de Nuevo</button>
-        </div>
-    `;
-    document.getElementById('play-again-btn').addEventListener('click', () => {
-        socket.emit('resetGame', { roomCode: currentRoomCode });
-        document.querySelector('.game-over-container').remove();
-        resultsSection.classList.add('hidden');
-    });
+socket.on('gameOver', ({ winnerName, finalScores }) => {
+    gameScreen.classList.add('hidden');
+    podiumScreen.classList.remove('hidden');
+
+    const sortedPlayers = finalScores.sort((a, b) => b.score - a.score);
+
+    if (sortedPlayers[0]) {
+        firstPlaceName.innerText = sortedPlayers[0].name;
+        firstPlaceScore.innerText = `${sortedPlayers[0].score} pts`;
+    } else { firstPlaceName.innerText = ''; firstPlaceScore.innerText = ''; }
+    
+    if (sortedPlayers[1]) {
+        secondPlaceName.innerText = sortedPlayers[1].name;
+        secondPlaceScore.innerText = `${sortedPlayers[1].score} pts`;
+    } else { secondPlaceName.innerText = ''; secondPlaceScore.innerText = ''; }
+
+    if (sortedPlayers[2]) {
+        thirdPlaceName.innerText = sortedPlayers[2].name;
+        thirdPlaceScore.innerText = `${sortedPlayers[2].score} pts`;
+    } else { thirdPlaceName.innerText = ''; thirdPlaceScore.innerText = ''; }
 });
 
 socket.on('error', (message) => { alert(`Error: ${message}`); });

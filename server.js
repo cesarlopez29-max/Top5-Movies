@@ -133,7 +133,6 @@ async function startNewRound(roomCode) {
     } catch (error) { console.error('Error al iniciar nueva ronda:', error); }
 }
 
-// --- ESTA FUNCIÓN HA SIDO MODIFICADA ---
 async function calculateResults(roomCode) {
     try {
         const room = await GameRoom.findOne({ roomCode });
@@ -143,7 +142,6 @@ async function calculateResults(roomCode) {
         const selections = roomSelections[roomCode];
         const roundScores = [];
 
-        // Se calculan y suman los puntos de la ronda para todos los jugadores
         room.players.forEach(player => {
             const playerSelection = selections[player.id] || [];
             const hits = playerSelection.filter(title => correctMovieTitles.includes(title)).length;
@@ -157,29 +155,29 @@ async function calculateResults(roomCode) {
             roundScores.push({ player, hits, selection: playerSelection });
         });
         
-        // Se envían los resultados de la ronda
         io.to(roomCode).emit('roundResult', { 
             correctMovies: room.currentActor.topMovies, 
             playerScores: roundScores.map(rs => ({ player: { name: rs.player.name }, hits: rs.hits, selection: rs.selection })), 
             updatedPlayers: room.players 
         });
 
-        // --- LÓGICA DE FIN DE PARTIDA MEJORADA ---
         const isGameOver = room.players.some(p => p.score >= room.targetScore);
 
         if (isGameOver) {
-            // Si al menos un jugador ha alcanzado la meta, encontramos al que tiene más puntos
             const maxScore = Math.max(...room.players.map(p => p.score));
             const winners = room.players.filter(p => p.score === maxScore);
-            const winnerNames = winners.map(w => w.name).join(' y '); // Maneja empates
+            const winnerNames = winners.map(w => w.name).join(' y ');
             
-            io.to(roomCode).emit('gameOver', { winnerName: winnerNames });
+            // --- CAMBIO IMPORTANTE ---
+            // Envía todas las puntuaciones finales al cliente para que pueda construir el podio.
+            io.to(roomCode).emit('gameOver', { 
+                winnerName: winnerNames, 
+                finalScores: room.players.map(p => ({ name: p.name, score: p.score }))
+            });
             delete roomSelections[roomCode];
         } else {
-            // Si nadie ha llegado a la meta, se prepara la siguiente ronda
             setTimeout(() => startNewRound(roomCode), 10000);
         }
-        // ------------------------------------------
         
         await room.save();
     } catch (error) { 

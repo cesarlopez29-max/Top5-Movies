@@ -1,6 +1,7 @@
 :root {
     --primary-color: #f3ce13; --dark-bg: #141414; --card-bg: #222222;
     --text-color: #ffffff; --text-muted: #aaaaaa; --border-color: #333333;
+    --gold: #FFD700; --silver: #C0C0C0; --bronze: #CD7F32;
 }
 body {
     font-family: 'Poppins', sans-serif; background-color: var(--dark-bg); color: var(--text-color);
@@ -24,6 +25,7 @@ button {
     background-color: var(--primary-color); color: #000; border: none;
     padding: 12px 20px; border-radius: 6px; font-weight: 600; cursor: pointer;
     transition: transform 0.2s, background-color 0.2s; width: 100%; font-size: 16px;
+    margin-bottom: 0.5rem;
 }
 button:hover { transform: translateY(-2px); background-color: #ffde40; }
 .room-actions { display: flex; gap: 1rem; align-items: stretch; flex-direction: column; }
@@ -37,22 +39,37 @@ ul { list-style: none; padding: 0; }
 #players-list li { background: #333; padding: 10px; border-radius: 4px; margin-bottom: 5px; }
 #results-section { background-color: #1a1a1a; padding: 1rem; border-radius: 8px; margin-top: 1rem; }
 select.movie-selector { margin-bottom: 0.5rem; }
-
-/* Estilos para los carteles de resultados */
-.poster-list {
-    display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; padding: 0;
-}
+.poster-list { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; padding: 0; }
 .poster-list li {
     background-color: transparent; text-align: center; width: 120px; font-size: 0.8rem;
     display: flex; flex-direction: column; align-items: center;
 }
-.poster-list img {
-    width: 100%; border-radius: 8px; border: 2px solid var(--border-color); margin-bottom: 0.5rem;
+.poster-list img { width: 100%; border-radius: 8px; border: 2px solid var(--border-color); margin-bottom: 0.5rem; }
+
+/* ESTILOS DEL PODIO */
+#podium-screen { text-align: center; }
+#podium-screen h2 { color: var(--primary-color); margin-bottom: 1.5rem; }
+.podium-container {
+    display: flex; justify-content: center; align-items: flex-end;
+    gap: 1.5rem; margin-top: 1rem; margin-bottom: 2rem; min-height: 250px;
 }
-.game-over-container {
-    text-align: center; margin-top: 2rem; padding-top: 1.5rem;
-    border-top: 1px solid var(--border-color);
+.podium-step {
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+    padding-bottom: 10px; border-radius: 8px 8px 0 0; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    position: relative; width: 120px; /* Ancho aumentado */
 }
-.game-over-container button {
-    width: auto; padding: 12px 30px; margin-top: 1rem;
+.step-box {
+    width: 100%; font-weight: bold; color: #fff; border-radius: 0 0 8px 8px; box-sizing: border-box;
 }
+.first-place { height: 200px; background: linear-gradient(to top, var(--gold), #FFEB75); border: 2px solid #CCA707; order: 2; z-index: 2; }
+.first-place .step-box { height: 80px; font-size: 2.5rem; color: #444; background: linear-gradient(to top, var(--gold), #FFEB75); border-top: 2px solid #CCA707; }
+.second-place { height: 150px; background: linear-gradient(to top, var(--silver), #E0E0E0); border: 2px solid #999; order: 1; z-index: 1; }
+.second-place .step-box { height: 70px; font-size: 2.2rem; color: #555; background: linear-gradient(to top, var(--silver), #E0E0E0); border-top: 2px solid #999; }
+.third-place { height: 100px; background: linear-gradient(to top, var(--bronze), #E6AD70); border: 2px solid #A85A00; order: 3; z-index: 1; }
+.third-place .step-box { height: 60px; font-size: 2rem; color: #666; background: linear-gradient(to top, var(--bronze), #E6AD70); border-top: 2px solid #A85A00; }
+.player-name { font-size: 1.2rem; font-weight: 600; margin-bottom: 5px; color: #333; }
+.player-score { font-size: 1rem; color: #555; margin-bottom: 10px; }
+#podium-screen button {
+    margin-top: 0.5rem; width: 60%; display: block; margin-left: auto; margin-right: auto;
+}
+#back-home-podium-btn { background-color: #555; color: #fff; }
