@@ -14,14 +14,21 @@ const movieSchema = new Schema({
 
 const gameRoomSchema = new Schema({
     roomCode: { type: String, required: true, unique: true, uppercase: true },
+    gameType: { type: String, required: true }, // 'top5movies' o 'top5clubes'
     players: [playerSchema],
     targetScore: { type: Number, required: true, default: 10 },
-    currentActor: { 
-        name: String, 
-        topMovies: [movieSchema]
-    },
+    
+    // Datos específicos de cada juego
+    currentActor: { name: String, topMovies: [movieSchema] },
+    currentFootballer: { name: String, correctClubs: [String] },
+
+    // Memorias de elementos usados
     usedActors: [{ type: Number }],
-    isSuddenDeath: { type: Boolean, default: false } // Para rondas de desempate
+    usedFootballers: [{ type: String }],
+    
+    // Estado para desempate
+    isSuddenDeath: { type: Boolean, default: false },
+    tiedPlayerIds: [{ type: String }]
 }, { timestamps: true });
 
 const GameRoom = mongoose.model('GameRoom', gameRoomSchema);

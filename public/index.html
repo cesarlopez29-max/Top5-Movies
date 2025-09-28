@@ -3,17 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Top 5 Movies Game</title>
+    <title>Top Games</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <header class="main-header">
-        <h1>🎬 Top 5 Movies 🌟</h1>
-    </header>
+    <header class="main-header"><h1>🏆 Top Games 🏆</h1></header>
     <main id="app-container">
-        <div id="home-screen">
-            <h2>Bienvenido</h2>
+        <div id="main-menu-screen">
+            <h2>Elige un Juego</h2>
+            <div class="game-choice-container">
+                <button class="game-choice-btn" data-gametype="top5movies">🎬 Top 5 Movies</button>
+                <button class="game-choice-btn" data-gametype="top5clubes">⚽ Top 5 Clubes</button>
+            </div>
+        </div>
+
+        <div id="home-screen" class="hidden">
+            <button id="back-to-menu-btn" class="back-btn" title="Volver al Menú">←</button>
+            <h2 id="home-title"></h2>
             <p>Introduce tu nombre y crea o únete a una sala.</p>
             <input type="text" id="playerName" placeholder="Tu nombre" autocomplete="off">
             <hr>
@@ -28,6 +35,7 @@
                 </div>
             </div>
         </div>
+        
         <div id="game-screen" class="hidden">
             <div class="game-header">
                 <h2>Sala: <span id="roomCodeDisplay"></span></h2>
@@ -35,17 +43,27 @@
             </div>
             <h3>Jugadores en la sala:</h3>
             <ul id="players-list"></ul>
+            
             <div id="round-section" class="hidden">
-                <h3 id="actor-name"></h3>
-                <p>Elige 5 películas de la lista:</p>
-                <div id="movie-selectors-container"></div>
-                <button id="submit-selection-btn">🎬 Enviar Selección</button>
+                <div id="top5movies-round" class="round-content hidden">
+                    <h3 id="actor-name"></h3>
+                    <p>Elige 5 películas de la lista:</p>
+                    <div id="movie-selectors-container"></div>
+                </div>
+
+                <div id="top5clubes-round" class="round-content hidden">
+                    <h3 id="footballer-name"></h3>
+                    <p>Elige todos los clubes en los que ha jugado:</p>
+                    <div id="club-options-container" class="club-grid"></div>
+                </div>
+                
+                <button id="submit-selection-btn">✅ Enviar Selección</button>
                 <div id="vote-status"></div>
             </div>
+            
             <div id="results-section" class="hidden">
                 <h4>🏆 Resultados de la Ronda 🏆</h4>
-                <p>Las 5 películas correctas eran:</p>
-                <ul id="correct-movies-list" class="poster-list"></ul>
+                <div id="results-content"></div>
                 <button id="continue-btn">Continuar</button>
                 <div id="continue-status"></div>
             </div>
