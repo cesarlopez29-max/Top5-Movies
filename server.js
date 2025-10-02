@@ -14,15 +14,21 @@ app.use(cors());
 const server = http.createServer(app);
 const io = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] }});
 
+// Variables de estado en memoria
 const roomSelections = {};
 const nextRoundRequests = {};
-const TMDB_API_KEY = process.env.TMDB_API_KEY;
-const SPORTSDB_API_KEY = process.env.SPORTSDB_API_KEY;
 
+// Claves de API del archivo .env
+const TMDB_API_KEY = process.env.TMDB_API_KEY;
+const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
+const RAPIDAPI_HOST = process.env.RAPIDAPI_HOST;
+
+// Conexión a la base de datos
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('Conectado a MongoDB'))
     .catch(err => console.error('Error al conectar a MongoDB:', err));
 
+// --- LÓGICA PRINCIPAL DE SOCKET.IO ---
 io.on('connection', (socket) => {
     socket.on('createRoom', async ({ playerName, targetScore, gameType }) => {
         const roomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -67,7 +73,7 @@ io.on('connection', (socket) => {
         if (!roomSelections[roomCode]) roomSelections[roomCode] = {};
         
         let playersInRound = room.players;
-        if (room.isSuddenDeath) {
+        if (room.isSuddenDeath && room.tiedPlayerIds) {
             playersInRound = room.players.filter(p => room.tiedPlayerIds.includes(p.id));
         }
         
@@ -155,6 +161,7 @@ async function startMoviesRound(roomCode) {
         io.to(roomCode).emit('newRound', { gameType: 'top5movies', actorName: randomPerson.name, movieList: allMovies, isSuddenDeath: room.isSuddenDeath, tiedPlayerIds: room.tiedPlayerIds });
     } catch (error) { console.error('Error al iniciar ronda de películas:', error); }
 }
+
 async function calculateMoviesResults(roomCode) {
     try {
         let room = await GameRoom.findOne({ roomCode });
@@ -163,7 +170,26 @@ async function calculateMoviesResults(roomCode) {
         const correctMovieTitles = room.currentActor.topMovies.map(m => m.title);
         const selections = roomSelections[roomCode];
         
-        if (room.isSuddenDeath) { /* ... lógica de muerte súbita ... */ }
+        if (room.isSuddenDeath) {
+            let maxHits = -1;
+            let winnersOfRound = [];
+            room.players.filter(p => room.tiedPlayerIds.includes(p.id)).forEach(player => {
+                const playerSelection = selections[player.id] || [];
+                const hits = playerSelection.filter(title => correctMovieTitles.includes(title)).length;
+                if (hits > maxHits) {
+                    maxHits = hits;
+                    winnersOfRound = [player];
+                } else if (hits === maxHits) {
+                    winnersOfRound.push(player);
+                }
+            });
+            const winnerNames = winnersOfRound.map(w => w.name).join(' y ');
+            io.to(roomCode).emit('gameOver', { winnerName: winnerNames, finalScores: room.players.map(p => ({ name: p.name, score: p.score })) });
+            room.isSuddenDeath = false;
+            room.tiedPlayerIds = [];
+            await room.save();
+            return;
+        }
         
         const roundScores = [];
         room.players.forEach(player => {
@@ -207,49 +233,64 @@ async function startFootballRound(roomCode) {
         const usedTodayIds = usedToday.map(f => f.footballerId);
 
         const famousPlayers = [
-            { id: "133644", name: "Lionel Messi" }, { id: "133635", name: "Cristiano Ronaldo" },
-            { id: "133646", name: "Neymar" }, { id: "134268", name: "Kylian Mbappé" },
-            { id: "133653", name: "Zlatan Ibrahimović" }, { id: "133744", name: "Andrés Iniesta" },
-            { id: "133664", name: "Luka Modrić" }, { id: "133708", name: "Sergio Ramos" }
+            "Lionel Messi", "Cristiano Ronaldo", "Neymar", 
+            "Kylian Mbappé", "Zlatan Ibrahimovic", "Andres Iniesta",
+            "Luka Modric", "Sergio Ramos"
         ];
         
-        let availablePlayers = famousPlayers.filter(p => !usedTodayIds.includes(p.id) && !room.usedFootballers.includes(p.id));
+        let availablePlayers = famousPlayers.filter(name => !room.usedFootballers.includes(name) && !usedTodayIds.includes(name));
         
-        // --- CORRECCIÓN LÓGICA ---
-        // Si se acaban los jugadores de la lista para esta partida, la reiniciamos.
         if (availablePlayers.length === 0) {
             io.to(roomCode).emit('error', '¡Ya han salido todos los futbolistas de la lista! Se reiniciará para esta partida.');
             room.usedFootballers = [];
             await room.save();
-            availablePlayers = famousPlayers.filter(p => !usedTodayIds.includes(p.id));
-
-            // Si AÚN no hay jugadores (porque todos se usaron hoy), no podemos continuar.
-            if (availablePlayers.length === 0) {
-                io.to(roomCode).emit('error', 'Todos los futbolistas de la lista han sido usados hoy. ¡Vuelvan mañana!');
-                return; // Detener la función aquí.
+            availablePlayers = famousPlayers.filter(name => !usedTodayIds.includes(name));
+             if (availablePlayers.length === 0) {
+                io.to(roomCode).emit('error', 'Todos los futbolistas han sido usados hoy. ¡Vuelvan mañana!');
+                return;
             }
         }
-        // ---------------------------------
         
-        const randomPlayer = availablePlayers[Math.floor(Math.random() * availablePlayers.length)];
+        const randomPlayerName = availablePlayers[Math.floor(Math.random() * availablePlayers.length)];
 
-        room.usedFootballers.push(randomPlayer.id);
-        const newUsedFootballer = new UsedFootballer({ footballerId: randomPlayer.id });
+        // 1. Buscar al jugador para obtener su ID
+        const playerSearchRes = await axios.get(`https://${RAPIDAPI_HOST}/players`, {
+            params: { search: randomPlayerName, league: '140', season: '2023' }, // Búsqueda más específica
+            headers: { 'x-rapidapi-key': RAPIDAPI_KEY, 'x-rapidapi-host': RAPIDAPI_HOST }
+        });
+        if (!playerSearchRes.data.response || playerSearchRes.data.response.length === 0) {
+            console.error(`No se encontró al jugador ${randomPlayerName} en la API.`);
+            return startFootballRound(roomCode); // Reintentar con otro jugador
+        }
+        const playerData = playerSearchRes.data.response[0].player;
+
+        room.usedFootballers.push(randomPlayerName);
+        const newUsedFootballer = new UsedFootballer({ footballerId: playerData.id.toString() });
         await newUsedFootballer.save().catch(e => {});
 
-        const response = await axios.get(`https://www.thesportsdb.com/api/v1/json/${SPORTSDB_API_KEY}/lookupformerteams.php?id=${randomPlayer.id}`);
-        let correctClubs = response.data.formerteams ? response.data.formerteams.map(team => team.strFormerTeam) : [];
-
-        const playerDetails = await axios.get(`https://www.thesportsdb.com/api/v1/json/${SPORTSDB_API_KEY}/lookupplayer.php?id=${randomPlayer.id}`);
-        if(playerDetails.data.players && playerDetails.data.players[0].strTeam && playerDetails.data.players[0].strTeam !== "_Retired"){
-             correctClubs.push(playerDetails.data.players[0].strTeam);
+        // 2. Buscar las transferencias (historial de equipos) del jugador
+        const transferRes = await axios.get(`https://${RAPIDAPI_HOST}/transfers`, {
+            params: { player: playerData.id },
+            headers: { 'x-rapidapi-key': RAPIDAPI_KEY, 'x-rapidapi-host': RAPIDAPI_HOST }
+        });
+        
+        let correctClubs = new Set();
+        if (transferRes.data.response) {
+            transferRes.data.response.forEach(transfer => {
+                transfer.teams.in.name && correctClubs.add(transfer.teams.in.name);
+                transfer.teams.out.name && correctClubs.add(transfer.teams.out.name);
+            });
         }
-        correctClubs = [...new Set(correctClubs)];
+        correctClubs = [...correctClubs];
 
-        const leagueResponse = await axios.get(`https://www.thesportsdb.com/api/v1/json/${SPORTSDB_API_KEY}/search_all_teams.php?l=Spanish%20La%20Liga`);
-        const wrongClubs = leagueResponse.data.teams
-            .map(team => team.strTeam)
-            .filter(teamName => !correctClubs.includes(teamName));
+        // 3. Obtener clubes de distracción
+        const leagueRes = await axios.get(`https://${RAPIDAPI_HOST}/teams`, {
+            params: { league: '140', season: '2023' },
+            headers: { 'x-rapidapi-key': RAPIDAPI_KEY, 'x-rapidapi-host': RAPIDAPI_HOST }
+        });
+        const wrongClubs = leagueRes.data.response
+            .map(item => item.team.name)
+            .filter(name => !correctClubs.includes(name));
 
         let allClubOptions = [...correctClubs];
         while (allClubOptions.length < 10 && wrongClubs.length > 0) {
@@ -258,13 +299,14 @@ async function startFootballRound(roomCode) {
         }
         allClubOptions.sort(() => Math.random() - 0.5);
 
-        room.currentFootballer = { name: randomPlayer.name, correctClubs };
+        room.currentFootballer = { name: playerData.name, correctClubs };
         await room.save();
         
-        io.to(roomCode).emit('newRound', { gameType: 'top5clubes', footballerName: randomPlayer.name, clubOptions: allClubOptions, isSuddenDeath: room.isSuddenDeath, tiedPlayerIds: room.tiedPlayerIds });
+        io.to(roomCode).emit('newRound', { gameType: 'top5clubes', footballerName: playerData.name, clubOptions: allClubOptions, isSuddenDeath: room.isSuddenDeath, tiedPlayerIds: room.tiedPlayerIds });
+
     } catch (error) { 
-        console.error("Error en startFootballRound:", error);
-        io.to(roomCode).emit('error', 'No se pudo iniciar la ronda de fútbol.');
+        console.error("Error en startFootballRound:", error.response ? error.response.data : error.message);
+        io.to(roomCode).emit('error', 'No se pudo iniciar la ronda de fútbol. La API puede estar fallando.');
     }
 }
 
@@ -274,34 +316,24 @@ async function calculateFootballResults(roomCode) {
         if (!room || !roomSelections[roomCode]) return;
         
         const selections = roomSelections[roomCode];
+        const correctClubs = room.currentFootballer.correctClubs;
 
-        // Lógica de Muerte Súbita
         if (room.isSuddenDeath) {
             let maxHits = -1;
             let winnersOfRound = [];
-            const correctClubs = room.currentFootballer.correctClubs;
-
             room.players.filter(p => room.tiedPlayerIds.includes(p.id)).forEach(player => {
                 const playerSelection = selections[player.id] || [];
                 const hits = playerSelection.filter(club => correctClubs.includes(club)).length;
-                if (hits > maxHits) {
-                    maxHits = hits;
-                    winnersOfRound = [player];
-                } else if (hits === maxHits) {
-                    winnersOfRound.push(player);
-                }
+                if (hits > maxHits) { maxHits = hits; winnersOfRound = [player]; }
+                else if (hits === maxHits) { winnersOfRound.push(player); }
             });
-
             const winnerNames = winnersOfRound.map(w => w.name).join(' y ');
             io.to(roomCode).emit('gameOver', { winnerName: winnerNames, finalScores: room.players.map(p => ({ name: p.name, score: p.score })) });
-            room.isSuddenDeath = false;
-            room.tiedPlayerIds = [];
+            room.isSuddenDeath = false; room.tiedPlayerIds = [];
             await room.save();
             return;
         }
         
-        // Lógica de Ronda Normal
-        const correctClubs = room.currentFootballer.correctClubs;
         room.players.forEach(player => {
             const playerSelection = selections[player.id] || [];
             const hits = playerSelection.filter(club => correctClubs.includes(club)).length;
@@ -317,6 +349,7 @@ async function calculateFootballResults(roomCode) {
             if (winners.length > 1) {
                 room.isSuddenDeath = true;
                 room.tiedPlayerIds = winners.map(p => p.id);
+                await room.save();
                 io.to(roomCode).emit('suddenDeathTie', { tiedPlayers: winners.map(p => p.name) });
                 setTimeout(() => startFootballRound(roomCode), 5000);
             } else {
