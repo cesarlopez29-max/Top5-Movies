@@ -14,24 +14,17 @@ app.use(cors());
 const server = http.createServer(app);
 const io = socketIo(server, { cors: { origin: "*", methods: ["GET", "POST"] }});
 
+// Variables de estado en memoria
 const roomSelections = {};
 const nextRoundRequests = {};
 
-// --- VERIFICACIÓN DE CLAVES DE API ---
+// Claves de API del archivo .env
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 const RAPIDAPI_HOST = process.env.RAPIDAPI_HOST;
-const MONGO_URI = process.env.MONGO_URI;
 
-if (!TMDB_API_KEY || !RAPIDAPI_KEY || !RAPIDAPI_HOST || !MONGO_URI) {
-    console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-    console.error("ERROR CRÍTICO: Una o más variables de entorno no están definidas.");
-    console.error("Asegúrate de que TMDB_API_KEY, RAPIDAPI_KEY, RAPIDAPI_HOST y MONGO_URI estén configuradas en Render.");
-    console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-}
-// ------------------------------------
-
-mongoose.connect(MONGO_URI)
+// Conexión a la base de datos
+mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('Conectado a MongoDB'))
     .catch(err => console.error('Error al conectar a MongoDB:', err));
 
