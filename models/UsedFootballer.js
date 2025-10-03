@@ -13,7 +13,6 @@ const usedFootballerSchema = new Schema({
     }
 });
 
-// Borra los documentos automáticamente después de 24 horas (86400 segundos)
 usedFootballerSchema.index({ "dateUsed": 1 }, { expireAfterSeconds: 86400 });
 
 const UsedFootballer = mongoose.model('UsedFootballer', usedFootballerSchema);

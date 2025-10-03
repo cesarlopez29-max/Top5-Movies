@@ -1,0 +1,17 @@
+[
+    "Real Madrid", "FC Barcelona", "Atlético Madrid", "Sevilla FC", "Valencia CF", "Athletic Bilbao", "Real Sociedad", "Villarreal CF", "Real Betis", "Celta de Vigo", "Getafe CF", "RCD Espanyol", "Rayo Vallecano", "Real Zaragoza", "Deportivo La Coruña", "RCD Mallorca", "Las Palmas",
+    "Manchester United", "Manchester City", "Liverpool", "Chelsea", "Arsenal", "Tottenham Hotspur", "Everton", "Leicester City", "West Ham United", "Aston Villa", "Newcastle United", "Fulham", "Derby County", "Leeds United", "Nottingham Forest", "Blackburn Rovers", "Stoke City", "Southampton", "Crystal Palace", "Brighton & Hove Albion",
+    "Bayern Munich", "Borussia Dortmund", "RB Leipzig", "Bayer 04 Leverkusen", "Schalke 04", "Eintracht Frankfurt", "VfL Wolfsburg", "Borussia Mönchengladbach", "Hertha BSC", "Hamburger SV", "Werder Bremen", "VfB Stuttgart", "SC Freiburg", "Mainz 05",
+    "Juventus", "AC Milan", "Inter Milan", "AS Roma", "SSC Napoli", "Lazio", "Atalanta", "Fiorentina", "Torino", "Brescia", "Parma", "Salernitana", "Sampdoria", "Genoa", "Bologna", "Udinese Calcio", "Palermo", "Como",
+    "Paris Saint-Germain", "Olympique de Marseille", "AS Monaco", "Olympique Lyonnais", "Lille OSC", "OGC Nice", "Stade Rennais FC", "RC Lens", "AS Saint-Étienne", "Bordeaux", "Cannes",
+    "Ajax", "PSV Eindhoven", "Feyenoord", "FC Groningen", "AZ Alkmaar", "FC Twente",
+    "FC Porto", "Benfica", "Sporting CP", "SC Braga",
+    "Boca Juniors", "River Plate", "Flamengo", "Palmeiras", "Corinthians", "Santos FC", "São Paulo FC", "Fluminense", "Grêmio", "Internacional", "Vasco da Gama", "Mogi Mirim", "América FC", "Athletico Paranaense", "Cruzeiro", "Independiente", "Racing Club", "Rosario Central",
+    "Inter Miami CF", "LA Galaxy", "New York Red Bulls", "Orlando City", "New York City FC", "Phoenix Rising", "Los Angeles FC", "Chicago Fire", "MetroStars", "New York Cosmos", "Fort Lauderdale Strikers", "D.C. United", "Seattle Sounders FC",
+    "Al-Nassr FC", "Al-Hilal SFC", "Al-Ittihad Club", "Al-Sadd SC", "Emirates Club", "Qatar SC", "Al-Shabab", "Al-Arabi",
+    "Vissel Kobe", "Sagan Tosu", "Kashima Antlers", "Kitchee SC",
+    "Celtic", "Rangers", "Galatasaray", "Fenerbahçe", "Besiktas", "Trabzonspor",
+    "Shakhtar Donetsk", "Dynamo Kyiv", "Zenit Saint Petersburg", "CSKA Moscow", "Spartak Moscow",
+    "Red Bull Salzburg", "Club Brugge", "RSC Anderlecht", "Olympiacos", "PAOK",
+    "Delhi Dynamos", "Cobreloa", "Colo-Colo", "Danubio FC", "Nacional"
+]

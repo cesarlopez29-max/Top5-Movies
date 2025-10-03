@@ -17,7 +17,6 @@
                 <button class="game-choice-btn" data-gametype="top5clubes">⚽ Top 5 Clubes</button>
             </div>
         </div>
-
         <div id="home-screen" class="hidden">
             <button id="back-to-menu-btn" class="back-btn" title="Volver al Menú">←</button>
             <h2 id="home-title"></h2>
@@ -35,7 +34,6 @@
                 </div>
             </div>
         </div>
-        
         <div id="game-screen" class="hidden">
             <div class="game-header">
                 <h2>Sala: <span id="roomCodeDisplay"></span></h2>
@@ -43,32 +41,28 @@
             </div>
             <h3>Jugadores en la sala:</h3>
             <ul id="players-list"></ul>
-            
             <div id="round-section" class="hidden">
                 <div id="top5movies-round" class="round-content hidden">
                     <h3 id="actor-name"></h3>
                     <p>Elige 5 películas de la lista:</p>
                     <div id="movie-selectors-container"></div>
                 </div>
-
                 <div id="top5clubes-round" class="round-content hidden">
                     <h3 id="footballer-name"></h3>
-                    <p>Elige todos los clubes en los que ha jugado:</p>
+                    <p>Selecciona dos clubes en los que haya jugado este futbolista:</p>
                     <div id="club-options-container" class="club-grid"></div>
                 </div>
-                
                 <button id="submit-selection-btn">✅ Enviar Selección</button>
                 <div id="vote-status"></div>
             </div>
-            
             <div id="results-section" class="hidden">
                 <h4>🏆 Resultados de la Ronda 🏆</h4>
                 <div id="results-content"></div>
+                <button id="review-answers-btn">Revisar Respuestas</button>
                 <button id="continue-btn">Continuar</button>
                 <div id="continue-status"></div>
             </div>
         </div>
-        
         <div id="podium-screen" class="hidden">
             <h2>🎉 ¡Fin de la Partida! 🎉</h2>
             <div class="podium-container">
@@ -84,6 +78,13 @@
             </div>
             <button id="play-again-podium-btn">Jugar de Nuevo</button>
             <button id="back-home-podium-btn">Volver al Inicio</button>
+        </div>
+        <div id="review-modal" class="modal-container hidden">
+            <div class="modal-content">
+                <span id="close-modal-btn" class="close-btn">&times;</span>
+                <h2>Revisión de la Ronda</h2>
+                <div id="review-details"></div>
+            </div>
         </div>
     </main>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>

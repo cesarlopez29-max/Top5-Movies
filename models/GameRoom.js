@@ -14,19 +14,13 @@ const movieSchema = new Schema({
 
 const gameRoomSchema = new Schema({
     roomCode: { type: String, required: true, unique: true, uppercase: true },
-    gameType: { type: String, required: true }, // 'top5movies' o 'top5clubes'
+    gameType: { type: String, required: true },
     players: [playerSchema],
     targetScore: { type: Number, required: true, default: 10 },
-    
-    // Datos específicos de cada juego
     currentActor: { name: String, topMovies: [movieSchema] },
     currentFootballer: { name: String, correctClubs: [String] },
-
-    // Memorias de elementos usados
     usedActors: [{ type: Number }],
     usedFootballers: [{ type: String }],
-    
-    // Estado para desempate
     isSuddenDeath: { type: Boolean, default: false },
     tiedPlayerIds: [{ type: String }]
 }, { timestamps: true });

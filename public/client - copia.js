@@ -1,10 +1,7 @@
-// --- CONFIGURACIÓN DE CONEXIÓN AUTOMÁTICA ---
-const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const BACKEND_URL = IS_LOCAL ? 'http://localhost:3000' : 'https://top5-movies.onrender.com'; // <-- ¡VERIFICA ESTA URL DE RENDER!
+// ¡¡¡IMPORTANTE!!! Reemplaza esto con la URL de tu backend en Render
+const socket = io('https://top5-movies.onrender.com');
 
-const socket = io(BACKEND_URL);
-
-// --- Elementos UI ---
+// --- Elementos de la UI ---
 const mainMenuScreen = document.getElementById('main-menu-screen');
 const homeScreen = document.getElementById('home-screen');
 const gameScreen = document.getElementById('game-screen');
@@ -41,10 +38,6 @@ const thirdPlaceName = document.getElementById('third-place-name');
 const thirdPlaceScore = document.getElementById('third-place-score');
 const playAgainPodiumBtn = document.getElementById('play-again-podium-btn');
 const backHomePodiumBtn = document.getElementById('back-home-podium-btn');
-const reviewModal = document.getElementById('review-modal');
-const closeModalBtn = document.getElementById('close-modal-btn');
-const reviewDetails = document.getElementById('review-details');
-const reviewAnswersBtn = document.getElementById('review-answers-btn');
 
 let currentRoomCode = '';
 let selectedGameType = '';
@@ -88,7 +81,7 @@ submitSelectionBtn.addEventListener('click', () => {
         selection = uniqueSelection;
     } else if (selectedGameType === 'top5clubes') {
         selection = Array.from(selectedClubs);
-        if (selection.length !== 2) return alert("Debes elegir exactamente 2 clubes.");
+        if (selection.length === 0) return alert("Debes elegir al menos un club.");
     }
     socket.emit('submitSelection', { roomCode: currentRoomCode, selection });
     submitSelectionBtn.disabled = true;
@@ -105,9 +98,7 @@ continueBtn.addEventListener('click', () => {
     continueBtn.disabled = true;
     continueStatus.innerText = '¡Listo! Esperando a los demás...';
 });
-reviewAnswersBtn.addEventListener('click', () => { reviewModal.classList.remove('hidden'); });
-closeModalBtn.addEventListener('click', () => { reviewModal.classList.add('hidden'); });
-window.addEventListener('click', (event) => { if (event.target == reviewModal) reviewModal.classList.add('hidden'); });
+
 
 // --- Lógica de Renderizado de UI ---
 function createMovieSelectors(movieList) {
@@ -140,12 +131,8 @@ function createClubOptions(clubOptions) {
                 selectedClubs.delete(clubName);
                 clubDiv.classList.remove('selected');
             } else {
-                if (selectedClubs.size < 2) {
-                    selectedClubs.add(clubName);
-                    clubDiv.classList.add('selected');
-                } else {
-                    alert("Solo puedes seleccionar 2 clubes. Deselecciona uno para elegir otro.");
-                }
+                selectedClubs.add(clubName);
+                clubDiv.classList.add('selected');
             }
         });
         clubOptionsContainer.appendChild(clubDiv);
@@ -155,12 +142,14 @@ function createClubOptions(clubOptions) {
 // --- Eventos del Servidor ---
 socket.on('connect', () => { myPlayerId = socket.id; });
 socket.on('connect_error', (err) => { alert(`Error de conexión: ${err.message}.`); });
+
 socket.on('roomCreated', ({ roomCode }) => {
     currentRoomCode = roomCode;
     homeScreen.classList.add('hidden');
     gameScreen.classList.remove('hidden');
     roomCodeDisplay.innerText = roomCode;
 });
+
 socket.on('joinedRoom', ({ roomCode, gameType }) => {
     currentRoomCode = roomCode;
     selectedGameType = gameType;
@@ -169,6 +158,7 @@ socket.on('joinedRoom', ({ roomCode, gameType }) => {
     startGameBtn.classList.add('hidden');
     roomCodeDisplay.innerText = roomCode;
 });
+
 socket.on('updatePlayers', (players) => {
     playersList.innerHTML = '';
     players.forEach(player => {
@@ -177,7 +167,9 @@ socket.on('updatePlayers', (players) => {
         playersList.appendChild(li);
     });
 });
+
 socket.on('newRound', (data) => {
+    // Resetear UI
     startGameBtn.classList.add('hidden');
     resultsSection.classList.add('hidden');
     podiumScreen.classList.add('hidden');
@@ -188,106 +180,93 @@ socket.on('newRound', (data) => {
     continueStatus.innerText = '';
     top5moviesRound.classList.add('hidden');
     top5clubesRound.classList.add('hidden');
+
     selectedGameType = data.gameType;
-    let isPlayerTied = false;
-    if (data.isSuddenDeath && data.tiedPlayerIds) isPlayerTied = data.tiedPlayerIds.includes(myPlayerId);
+
     if (data.gameType === 'top5movies') {
-        top5moviesRound.querySelector('p').innerText = "Elige 5 películas de la lista:";
         actorNameEl.innerText = `Actor: ${data.actorName}`;
-        if (data.isSuddenDeath) actorNameEl.innerHTML = `🔥 ¡MUERTE SÚBITA! 🔥<br>Actor: ${data.actorName}`;
         createMovieSelectors(data.movieList);
         top5moviesRound.classList.remove('hidden');
     } else if (data.gameType === 'top5clubes') {
-        top5clubesRound.querySelector('p').innerText = "Selecciona dos clubes en los que haya jugado este futbolista:";
         footballerNameEl.innerText = `Futbolista: ${data.footballerName}`;
-        if (data.isSuddenDeath) footballerNameEl.innerHTML = `🔥 ¡MUERTE SÚBITA! 🔥<br>Futbolista: ${data.footballerName}`;
         createClubOptions(data.clubOptions);
         top5clubesRound.classList.remove('hidden');
     }
-    if (data.isSuddenDeath && !isPlayerTied) {
-        submitSelectionBtn.disabled = true;
-        voteStatus.innerText = "Esperando el resultado del desempate...";
-    }
 });
+
 socket.on('updateVoteCount', ({ received, total }) => {
     if (received < total) voteStatus.innerText = `Esperando... (${received}/${total} jugadores han votado)`;
 });
+
 socket.on('roundResult', (data) => {
     voteStatus.innerText = '';
     roundSection.classList.add('hidden');
+    
+    // Rellenar el contenido de los resultados dinámicamente
     resultsContent.innerHTML = '';
     if (data.gameType === 'top5movies') {
-        const list = document.createElement('ul');
-        list.className = 'poster-list';
-        data.correctAnswers.forEach(movie => {
+        resultsContent.innerHTML = `
+            <p>Las 5 películas correctas eran:</p>
+            <ul id="correct-movies-list" class="poster-list"></ul>
+        `;
+        const correctMoviesList = document.getElementById('correct-movies-list');
+        data.correctMovies.forEach(movie => {
             const li = document.createElement('li');
             const img = document.createElement('img');
-            img.src = movie.poster; img.alt = movie.title;
+            img.src = movie.poster;
+            img.alt = movie.title;
             const p = document.createElement('p');
             p.innerText = movie.title;
-            li.appendChild(img); li.appendChild(p);
-            list.appendChild(li);
+            li.appendChild(img);
+            li.appendChild(p);
+            correctMoviesList.appendChild(li);
         });
-        resultsContent.innerHTML = `<p>Las 5 películas correctas eran:</p>`;
-        resultsContent.appendChild(list);
     } else if (data.gameType === 'top5clubes') {
-        resultsContent.innerHTML = `<p>Los clubes correctos eran: <strong>${data.correctAnswers.join(', ')}</strong></p>`;
+        resultsContent.innerHTML = `
+            <p>Los clubes correctos eran:</p>
+            <ul id="correct-clubs-list"></ul>
+        `;
+        const correctClubsList = document.getElementById('correct-clubs-list');
+        data.correctClubs.forEach(club => {
+            const li = document.createElement('li');
+            li.innerText = club;
+            correctClubsList.appendChild(li);
+        });
     }
+
     playersList.innerHTML = '';
     data.updatedPlayers.forEach(player => {
         const li = document.createElement('li');
         li.innerText = `${player.name} - ${player.score} puntos`;
         playersList.appendChild(li);
     });
+
     resultsSection.classList.remove('hidden');
     continueStatus.innerText = 'Haz clic en continuar cuando estés listo.';
-    reviewDetails.innerHTML = '';
-    data.updatedPlayers.forEach(player => {
-        const playerBlock = document.createElement('div');
-        playerBlock.className = 'review-player-block';
-        playerBlock.innerHTML = `<h4>${player.name}</h4>`;
-        const selectionList = document.createElement('ul');
-        selectionList.className = 'review-list';
-        const playerSelection = data.playerSelections[player.id] || [];
-        if (playerSelection.length === 0) {
-            const li = document.createElement('li');
-            li.innerText = "No ha seleccionado nada.";
-            selectionList.appendChild(li);
-        } else {
-            playerSelection.forEach(item => {
-                const li = document.createElement('li');
-                li.innerText = item;
-                const isCorrect = data.correctAnswers.some(correct => (correct.title || correct) === item);
-                li.className = isCorrect ? 'correct' : 'incorrect';
-                selectionList.appendChild(li);
-            });
-        }
-        playerBlock.appendChild(selectionList);
-        reviewDetails.appendChild(playerBlock);
-    });
 });
+
 socket.on('updateContinueCount', ({ received, total }) => {
     continueStatus.innerText = `Esperando para la siguiente ronda... (${received}/${total} listos)`;
 });
-socket.on('suddenDeathTie', ({ tiedPlayers }) => {
-    resultsSection.classList.add('hidden');
-    alert(`¡EMPATE! Se jugará una ronda de muerte súbita entre: ${tiedPlayers.join(' y ')}`);
-});
+
 socket.on('gameOver', ({ winnerName, finalScores }) => {
     gameScreen.classList.add('hidden');
     podiumScreen.classList.remove('hidden');
+    
+    // Rellenar el podio (asegúrate de que los IDs del podio existan en el HTML)
     const sortedPlayers = finalScores.sort((a, b) => b.score - a.score);
     if (sortedPlayers[0]) {
         firstPlaceName.innerText = sortedPlayers[0].name;
         firstPlaceScore.innerText = `${sortedPlayers[0].score} pts`;
-    } else { firstPlaceName.innerText = ''; firstPlaceScore.innerText = ''; }
+    }
     if (sortedPlayers[1]) {
         secondPlaceName.innerText = sortedPlayers[1].name;
         secondPlaceScore.innerText = `${sortedPlayers[1].score} pts`;
-    } else { secondPlaceName.innerText = ''; secondPlaceScore.innerText = ''; }
+    }
     if (sortedPlayers[2]) {
         thirdPlaceName.innerText = sortedPlayers[2].name;
         thirdPlaceScore.innerText = `${sortedPlayers[2].score} pts`;
-    } else { thirdPlaceName.innerText = ''; thirdPlaceScore.innerText = ''; }
+    }
 });
+
 socket.on('error', (message) => { alert(`Error: ${message}`); });
