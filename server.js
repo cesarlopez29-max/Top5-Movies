@@ -181,12 +181,7 @@ async function calculateMoviesResults(roomCode) {
             player.score += pointsThisRound;
             roundScores.push({ player, hits, selection: playerSelection });
         });
-        io.to(roomCode).emit('roundResult', { 
-            gameType: 'top5movies', 
-            correctAnswers: room.currentActor.topMovies, 
-            playerSelections: selections,
-            updatedPlayers: room.players 
-        });
+        io.to(roomCode).emit('roundResult', { gameType: 'top5movies', correctAnswers: room.currentActor.topMovies, playerSelections: selections, updatedPlayers: room.players });
         const isGameOver = room.players.some(p => p.score >= room.targetScore);
         if (isGameOver) {
             const maxScore = Math.max(...room.players.map(p => p.score));
@@ -224,7 +219,9 @@ async function startFootballRound(roomCode) {
         }
         
         const randomPlayer = availablePlayers[Math.floor(Math.random() * availablePlayers.length)];
-        const correctClubs = randomPlayer.clubs;
+        
+        const shuffledClubs = [...randomPlayer.clubs].sort(() => 0.5 - Math.random());
+        const correctClubs = shuffledClubs.slice(0, 2);
 
         room.usedFootballers.push(randomPlayer.name);
 
